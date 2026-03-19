@@ -1,0 +1,9 @@
+{
+  "name": "spec-engine",
+  "version": "1.0.0",
+  "description": "Spec-driven development engine: structured requirements (EARS), architecture design, wave-based task execution, quality gates, and full SDLC lifecycle",
+  "author": {
+    "name": "habib0x"
+  },
+  "keywords": ["specs", "requirements", "design", "planning", "workflow", "EARS", "execution", "quality-gates", "wave-batching"]
+}
