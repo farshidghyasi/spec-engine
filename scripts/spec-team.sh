@@ -8,13 +8,15 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SPEC_NAME=""
 USE_WORKTREE=true
 MAX_ITERATIONS=50
+SKIP_PERMISSIONS=false
 
 while [[ $# -gt 0 ]]; do
   case $1 in
     --spec-name) SPEC_NAME="$2"; shift 2 ;;
     --max-iterations) MAX_ITERATIONS="$2"; shift 2 ;;
     --no-worktree) USE_WORKTREE=false; shift ;;
-    *) echo "Usage: spec-team.sh [--spec-name <name>] [--max-iterations N] [--no-worktree]"; exit 1 ;;
+    --yolo) SKIP_PERMISSIONS=true; shift ;;
+    *) echo "Usage: spec-team.sh [--spec-name <name>] [--max-iterations N] [--no-worktree] [--yolo]"; exit 1 ;;
   esac
 done
 
@@ -89,12 +91,18 @@ cd "$WORK_DIR"
 
 create_checkpoint 1 "$WORK_DIR"
 
+CLAUDE_FLAGS="-p"
+if [[ "$SKIP_PERMISSIONS" == "true" ]]; then
+  CLAUDE_FLAGS="--dangerously-skip-permissions -p"
+  echo "WARNING: Running with --dangerously-skip-permissions (--yolo mode)"
+fi
+
 echo "=== Starting Spec Team for: $SPEC_NAME ==="
 echo "Project: $(pwd)"
 echo "Team: Implementer + Tester + Reviewer + Debugger"
 echo ""
 
-claude -p "Run /spec-team for spec '$SPEC_NAME' with max iterations $MAX_ITERATIONS."
+claude $CLAUDE_FLAGS "Run /spec-team for spec '$SPEC_NAME' with max iterations $MAX_ITERATIONS."
 
 echo ""
 echo "=== spec-team session ended ==="

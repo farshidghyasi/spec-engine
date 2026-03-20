@@ -7,12 +7,14 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SPEC_NAME=""
 USE_WORKTREE=true
+SKIP_PERMISSIONS=false
 
 while [[ $# -gt 0 ]]; do
   case $1 in
     --spec-name) SPEC_NAME="$2"; shift 2 ;;
     --no-worktree) USE_WORKTREE=false; shift ;;
-    *) echo "Usage: spec-exec.sh [--spec-name <name>] [--no-worktree]"; exit 1 ;;
+    --yolo) SKIP_PERMISSIONS=true; shift ;;
+    *) echo "Usage: spec-exec.sh [--spec-name <name>] [--no-worktree] [--yolo]"; exit 1 ;;
   esac
 done
 
@@ -65,13 +67,19 @@ STATE_HASH_BEFORE=$(snapshot_state "$SPEC_DIR")
 # create checkpoint
 create_checkpoint 1 "$WORK_DIR"
 
+CLAUDE_FLAGS="-p"
+if [[ "$SKIP_PERMISSIONS" == "true" ]]; then
+  CLAUDE_FLAGS="--dangerously-skip-permissions -p"
+  echo "WARNING: Running with --dangerously-skip-permissions (--yolo mode)"
+fi
+
 echo "=== Running spec-exec for: $SPEC_NAME ==="
 
 OUTPUT_FILE=$(mktemp)
 trap "rm -f $OUTPUT_FILE" EXIT
 
 set +e
-claude -p "Run /spec-exec for spec '$SPEC_NAME'." | tee "$OUTPUT_FILE"
+claude $CLAUDE_FLAGS "Run /spec-exec for spec '$SPEC_NAME'." | tee "$OUTPUT_FILE"
 CLAUDE_EXIT=${PIPESTATUS[0]}
 set -e
 

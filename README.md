@@ -187,7 +187,7 @@ Execution can be interrupted and resumed across sessions with zero re-orientatio
 
 ### Security Model
 
-- **No `--dangerously-skip-permissions`** — each agent has only the tools it needs
+- **No `--dangerously-skip-permissions` by default** — each agent has only the tools it needs. Scripts accept `--yolo` to opt into skipping permissions for fully autonomous CI/CD execution.
 - **Spec integrity verification** — SHA256 manifests checked before execution
 - **Secret-aware staging** — sensitive files detected and excluded from commits
 - **Input validation** — strict regex on spec names, URL validation
@@ -230,13 +230,20 @@ Start from a pre-filled template:
 Shell scripts for headless execution with built-in safety:
 
 ```bash
+# Normal mode (prompts for permissions)
 ./scripts/spec-loop.sh --spec-name user-authentication
 ./scripts/spec-team.sh --spec-name payment-processing --max-iterations 30
+
+# Fully autonomous (skips all permission prompts)
+./scripts/spec-loop.sh --spec-name user-authentication --yolo
+./scripts/spec-exec.sh --yolo
+./scripts/spec-team.sh --spec-name payment-processing --yolo
 ```
 
 Script features:
 - **Auto-detect** — `--spec-name` is optional if only one spec exists
 - **Worktree isolation** — runs in a `spec/<name>` branch (disable with `--no-worktree`)
+- **`--yolo` mode** — passes `--dangerously-skip-permissions` for fully autonomous execution
 - **Checkpoint recovery** — creates checkpoint commits before each iteration, rolls back on crash
 - **Crash safety net** — detects if state.json wasn't updated and appends fallback audit entry
 - **Duplicate prevention** — `spec-team.sh` prevents concurrent runs on the same spec
