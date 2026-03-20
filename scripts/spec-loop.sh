@@ -8,13 +8,15 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SPEC_NAME=""
 USE_WORKTREE=true
 MAX_ITERATIONS=50
+SKIP_PERMISSIONS=false
 
 while [[ $# -gt 0 ]]; do
   case $1 in
     --spec-name) SPEC_NAME="$2"; shift 2 ;;
     --max-iterations) MAX_ITERATIONS="$2"; shift 2 ;;
     --no-worktree) USE_WORKTREE=false; shift ;;
-    *) echo "Usage: spec-loop.sh [--spec-name <name>] [--max-iterations N] [--no-worktree]"; exit 1 ;;
+    --yolo) SKIP_PERMISSIONS=true; shift ;;
+    *) echo "Usage: spec-loop.sh [--spec-name <name>] [--max-iterations N] [--no-worktree] [--yolo]"; exit 1 ;;
   esac
 done
 
@@ -64,9 +66,15 @@ cd "$WORK_DIR"
 OUTPUT_FILE=$(mktemp)
 trap "rm -f $OUTPUT_FILE" EXIT
 
+CLAUDE_FLAGS="-p"
+if [[ "$SKIP_PERMISSIONS" == "true" ]]; then
+  CLAUDE_FLAGS="--dangerously-skip-permissions -p"
+  echo "WARNING: Running with --dangerously-skip-permissions (--yolo mode)"
+fi
+
 echo "=== Starting spec-loop for: $SPEC_NAME (max $MAX_ITERATIONS iterations) ==="
 
-claude -p "Run /spec-loop for spec '$SPEC_NAME' with max iterations $MAX_ITERATIONS."
+claude $CLAUDE_FLAGS "Run /spec-loop for spec '$SPEC_NAME' with max iterations $MAX_ITERATIONS."
 
 echo ""
 echo "=== spec-loop session ended ==="
