@@ -14,12 +14,12 @@ allowed-tools:
 
 # /spec-loop Command
 
-Wave-based execution loop. Batches independent tasks, runs quality gates, enforces cost controls, and pauses for human checkpoints.
+Wave-based execution loop. Batches independent tasks, runs them in parallel where safe, runs quality gates, enforces cost controls, and pauses for human checkpoints.
 
 ## Usage
 
 ```
-/spec-loop [spec-name] [--dry-run] [--max-iterations N]
+/spec-loop [spec-name] [--dry-run] [--max-iterations N] [--no-parallel]
 ```
 
 ## Dry-Run Mode
@@ -28,19 +28,22 @@ If `--dry-run` is specified:
 
 1. Read state.json and tasks.md
 2. Parse the wave structure
-3. Estimate tokens per wave (task count * ~8000 tokens average per task)
-4. Estimate cost (Sonnet pricing for implementation, Opus for review if team mode)
-5. Present execution plan:
+3. Identify parallel groups (tasks with non-overlapping Files)
+4. Estimate tokens per wave (task count * ~8000 tokens average per task)
+5. Estimate cost (Sonnet pricing for implementation, Opus for review if team mode)
+6. Present execution plan:
 
 ```
 == Execution Plan (Dry Run) ==
 
-Wave 0: T-1 (setup)                    ~8k tokens
-Wave 1: T-2, T-3, T-4 (core)          ~24k tokens (batch: 2+1)
-Wave 2: T-5, T-6 (integration)        ~16k tokens
-Wave 3: T-7 (e2e testing)             ~8k tokens
-Wave 4: T-8 (polish)                  ~8k tokens
+Wave 0: T-1 (setup)                          ~8k tokens  [sequential]
+Wave 1: T-2, T-3 (core)                      ~16k tokens [PARALLEL — no file overlap]
+        T-4 (core, shares files with T-3)     ~8k tokens  [after T-2, T-3]
+Wave 2: T-5, T-6 (integration)               ~16k tokens [PARALLEL — no file overlap]
+Wave 3: T-7 (e2e testing)                     ~8k tokens  [sequential]
+Wave 4: T-8 (polish)                          ~8k tokens  [sequential]
 
+Parallel speedup: ~1.5x (3 parallel groups)
 Estimated total: ~64k tokens
 Estimated cost: ~$0.32 (Sonnet)
 Iterations: ~4 (wave-based batching)
@@ -73,24 +76,69 @@ For each wave (starting from `state.json.execution.current_wave`):
 #### 2a: Collect Pending Tasks
 Read state.json.waves[current_wave].tasks. Filter to tasks with status "pending".
 
-#### 2b: Batch Tasks
-Group pending tasks in the current wave into batches of 2-3. If only 1 task remains, batch size is 1.
+#### 2b: Pre-Parallel Setup
 
-#### 2c: Execute Batch
-For each batch:
+Before spawning parallel agents:
 
-1. Update state.json: set `execution.current_batch` to the batch task IDs
-2. **Spawn spec-implementer agent** via Agent tool with:
-   - state.json summary (Layer 0: ~200 tokens)
-   - Batch task descriptions from tasks.md (Layer 1: ~500 tokens)
-   - Full spec context only on first iteration or after errors (Layer 2)
-   - Relevant lessons from lessons.json
-3. After implementation, **run quality gates** via Bash:
-   - Lint → Type Check → Regression Test → Secret Scan
+1. **Collect dependency additions**: If multiple tasks in the wave need new packages, install ALL dependencies first on the main branch (read task descriptions for `npm install`, `pip install`, etc.). This prevents lockfile conflicts.
+2. **Validate no shared file overlap**: Check each task's Files against `state.json.parallel.shared_files`. If any task lists a shared file, move it to a sequential sub-batch.
+3. **Validate import dependencies**: For each pair of tasks in the wave, check if task B's Files reference imports from task A's Files. If so, they CANNOT be parallel — sequentialize them.
+
+#### 2c: Build Parallel Groups
+
+Partition pending tasks into parallel groups based on file ownership:
+
+1. Read the `files` field from each pending task in state.json (or parse from tasks.md)
+2. Exclude tasks that touch shared files (from step 2b) — these run sequentially after all parallel groups
+3. Build a file-conflict graph: two tasks conflict if they share any file in their Files lists
+4. Tasks with NO file conflicts with each other form a **parallel group**
+5. Cap parallel group size at `state.json.parallel.max_parallel_agents` (default: 3)
+6. Tasks that conflict are placed in separate sequential sub-batches
+
+**Example**: Wave 1 has T-2 (files: `src/auth.ts`), T-3 (files: `src/users.ts`), T-4 (files: `src/auth.ts, src/middleware.ts`)
+- Parallel group 1: T-2, T-3 (no overlap)
+- Sequential after group 1: T-4 (conflicts with T-2 on `src/auth.ts`)
+
+If `--no-parallel` is specified, skip this step and process all tasks sequentially.
+
+#### 2d: Execute Parallel Group
+
+For each parallel group:
+
+1. Update state.json: set `execution.current_batch` to the group's task IDs
+
+2. **If group has 1 task** — spawn a single spec-implementer agent (no isolation needed)
+
+3. **If group has 2+ tasks** — spawn parallel spec-implementer agents:
+   - Launch each agent via the Agent tool with `isolation: "worktree"`
+   - Each agent receives:
+     - state.json summary (Layer 0: ~200 tokens)
+     - ONLY its assigned task description from tasks.md (Layer 1)
+     - Its assigned file boundaries: "You MUST only create/modify these files: [list]. Do NOT modify any other files. Do NOT refactor existing function signatures. Do NOT run formatters. Note any cross-boundary needs in your handoff file."
+     - Full spec context on first iteration or after errors (Layer 2)
+     - Relevant lessons from lessons.json
+   - **All parallel agents are launched in a single message** (multiple Agent tool calls)
+   - Wait for all agents to complete
+
+4. **Atomic merge with fallback**: Record pre-merge HEAD SHA. Merge each worktree's changes back in task-ID order:
+   - Exclude files in `state.json.parallel.generated_files` from merge
+   - If ANY merge fails: reset to pre-merge SHA, fall back to sequential execution for the entire group
+   - Shared file changes (noted in handoff files) are applied in a reconciliation step after all agent merges
+
+5. **Post-merge regeneration**: Run commands from `state.json.parallel.post_merge_commands`:
+   - Lock file regeneration (`npm install` / `pnpm install`)
+   - Codegen (`npx prisma generate`, etc.)
+   - Cache clean (`rm -rf .next dist node_modules/.cache`)
+   - Do NOT run formatters yet
+
+6. **Run quality gates** via Bash:
+   - Lint (includes formatting) -> Type Check -> Regression Test -> Secret Scan
    - On failure: spawn spec-debugger (max 2 retries)
    - On persistent failure: task rollback, increment failures in state.json
-4. **Update state.json**: mark completed tasks, record tokens, append audit log
-5. **Commit** with descriptive message
+
+7. **Update state.json**: mark completed tasks, record tokens, append audit log
+
+7. **Commit** with descriptive message listing all task IDs in the batch
 
 #### 2d: Post-Batch Checks
 
@@ -109,7 +157,7 @@ For each batch:
    - Show cost summary
    - Ask user: "Increase budget" / "Abort"
 
-4. **Completion check**: Read state.json.tasks. If ALL tasks completed, break out of loop.
+4. **Completion check**: Read state.json.tasks. If ALL tasks have status "completed" AND wired is "yes" or "n/a", break out of loop. Tasks with wired="pending" are NOT done.
 
 5. **Wave advancement**: If all tasks in current wave are completed, increment `current_wave`.
 
@@ -130,7 +178,9 @@ When all tasks are complete:
 == Spec Complete: [feature-name] ==
 
 Tasks: 15/15 completed
-Iterations: 6
+Wired: 13 yes, 2 n/a
+Iterations: 6 (3 parallel, 3 sequential)
+Parallel groups: 4 (saved ~3 iterations)
 Total tokens: 127,430
 Cost: ~$0.64
 Duration: [start time] to [end time]

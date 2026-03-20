@@ -30,6 +30,11 @@ Display progress, cost, and health metrics for a spec.
 
 Progress: [=========>          ] 7/15 tasks (47%)
 
+Integration Health:
+  Completed + Wired: 6
+  Completed but NOT wired: 1 (needs wiring!)
+  Wired but NOT verified: 0
+
 Wave Breakdown:
   Wave 0: [####] 2/2 complete
   Wave 1: [##--] 2/4 complete  <-- current

@@ -53,18 +53,20 @@ Using the requirements:
 1. Design architecture with component diagrams and data flow
 2. **Every component MUST have `Covers: US-X` annotation** listing which user stories it implements
 3. Define precise interface contracts (type signatures, not English descriptions)
-4. Write the **Error Handling Strategy** section (REQUIRED):
+4. **Identify shared types/interfaces** used by multiple components. List these in a **Shared Contracts** section — they will be implemented in Wave 0 before parallel execution begins. This is critical for parallel agent safety: if two components share a type, the type definition must exist before either component is implemented.
+5. **Map components to files**: For each component, specify the file path where it will be implemented. This mapping feeds into task file ownership for parallel execution.
+6. Write the **Error Handling Strategy** section (REQUIRED):
    - Error taxonomy table
    - Error propagation rules per layer
    - User-facing error message strategy
-5. Write the **State Management** section (if feature has complex state):
+7. Write the **State Management** section (if feature has complex state):
    - State diagram
    - Storage location and persistence
    - Frontend-backend sync strategy
-6. Fill the **Traceability Matrix** mapping every US to components, endpoints, and models
-7. Fill the **Risk Register** (carry forward from requirements + add technical risks)
-8. Document alternatives considered with clear rationale
-9. Write **Migration Plan** if modifying existing functionality
+8. Fill the **Traceability Matrix** mapping every US to components, endpoints, and models
+9. Fill the **Risk Register** (carry forward from requirements + add technical risks)
+10. Document alternatives considered with clear rationale
+11. Write **Migration Plan** if modifying existing functionality
 
 Read `${CLAUDE_PLUGIN_ROOT}/references/design-patterns.md` for patterns and templates.
 

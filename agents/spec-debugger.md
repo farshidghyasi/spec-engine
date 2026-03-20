@@ -44,10 +44,12 @@ Recommendation:
 
 1. Read the failure report carefully
 2. **Check wiring first** — most "bugs" are missing connections:
+   - Check `Wired` field in tasks.md — if `pending`, the code was never wired
    - Route not registered?
    - Component not imported?
    - Endpoint not in router?
    - API call not triggered?
+   - After fixing wiring, update `Wired: yes` in tasks.md and `wired: "yes"` in state.json
 3. Read the relevant code
 4. Identify the ROOT CAUSE (not just symptoms)
 5. Fix the issue with a targeted change

@@ -61,6 +61,17 @@ Implementation complete
   - Strings matching patterns: `AKIA` (AWS), `-----BEGIN.*PRIVATE KEY-----`, base64 strings > 40 chars
 - **On failure**: Unstage the file, warn in audit log, continue
 
+## Gate 5: Post-Parallel Merge Checks (after parallel execution only)
+
+These additional checks run after merging parallel worktrees, before the standard gates:
+
+- **Circular import detection**: Check for circular dependencies introduced by parallel-authored modules. For JS/TS projects, use `madge --circular` or equivalent. For Python, check with `import-linter` or a custom script.
+- **Route collision detection**: If the project has an API router, check that no two routes conflict (e.g., `/users/:id` vs `/users/search`).
+- **Type stub cleanup**: Remove any `.d.ts` stub files generated for cross-worktree type resolution.
+- **Generated file regeneration**: Run commands from `state.json.parallel.post_merge_commands` (lockfile regen, codegen, cache clean).
+
+These checks are skipped when running in sequential mode.
+
 ## Tiered Failure Recovery
 
 When quality gates fail repeatedly:
