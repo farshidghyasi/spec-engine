@@ -326,8 +326,8 @@ spec-engine addresses all four by leveraging Claude Code's native Agent tool, pe
 
 ## Contributors
 
-- [habib0x](https://github.com/habib0x0) — Author
-- [farshidghyasi](https://github.com/farshidghyasi) — Contributor
+- [farshidghyasi](https://github.com/farshidghyasi) — Author
+- [habib0x](https://github.com/habib0x0) — Orignal spec-driven-plugin Author
 
 ## License
 
