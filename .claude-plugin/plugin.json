@@ -3,10 +3,7 @@
   "version": "1.1.0",
   "description": "Spec-driven development engine: structured requirements (EARS), architecture design, wave-based parallel task execution, quality gates, and full SDLC lifecycle",
   "author": {
-    "name": "habib0x"
+    "name": "farshidghyasi"
   },
-  "contributors": [
-    { "name": "farshidghyasi" }
-  ],
   "keywords": ["specs", "requirements", "design", "planning", "workflow", "EARS", "execution", "quality-gates", "wave-batching", "parallel-agents", "model-routing"]
 }
