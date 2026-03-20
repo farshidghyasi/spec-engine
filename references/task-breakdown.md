@@ -7,10 +7,23 @@ Guidance for the spec-tasker agent when generating tasks.md.
 Each task must have:
 - **Status**: pending | in_progress | completed
 - **Wave**: Integer assigned by topological sort (0 = no dependencies)
+- **Wired**: pending | yes | n/a (tracks whether code is connected to the application)
 - **Dependencies**: List of task IDs this task depends on
 - **Covers**: Which user story/acceptance criteria this implements
+- **Files**: List of files this task will create or modify (enables parallel execution)
 - **Description**: What to implement
 - **Acceptance Criteria**: Testable conditions including at least one error-path criterion
+
+A task is only truly done when `Status: completed` AND `Wired: yes` (or `n/a` for infra tasks).
+
+### File Ownership
+
+The Files field enables safe parallel execution. Tasks in the same wave with non-overlapping files can be implemented simultaneously by separate agents, each in its own git worktree.
+
+Rules:
+- No two tasks in the same wave should list the same file
+- Shared integration files (routers, navigation) go to the last task in the wave that needs them
+- Each task owns its own test files
 
 ## Wave Assignment (Topological Sort)
 

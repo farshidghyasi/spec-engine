@@ -14,6 +14,13 @@
 
   "waves": [],
 
+  "parallel": {
+    "max_parallel_agents": 3,
+    "shared_files": [],
+    "generated_files": [],
+    "post_merge_commands": []
+  },
+
   "execution": {
     "current_wave": 0,
     "current_batch": [],

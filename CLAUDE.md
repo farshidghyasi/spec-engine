@@ -12,7 +12,8 @@ spec-engine is a Claude Code plugin that guides feature development through a st
 .claude-plugin/plugin.json  - Plugin manifest
 skills/                     - Slash command definitions (SKILL.md format)
 agents/                     - Subagent definitions with model routing
-scripts/                    - Thin CI/CD shell wrappers (~20 lines each)
+scripts/                    - CI/CD shell scripts with worktree + checkpoint support
+scripts/lib/                - Shared shell libraries (worktree, checkpoint, deps)
 templates/                  - Spec file scaffolding
 references/                 - Reference docs for agents
 ```
@@ -26,7 +27,7 @@ references/                 - Reference docs for agents
 | `/spec-refine` | Update spec with change impact analysis |
 | `/spec-tasks` | Regenerate tasks from updated spec |
 | `/spec-validate` | Validate completeness (all 5 EARS patterns, traceability) |
-| `/spec-status` | Progress dashboard with cost tracking |
+| `/spec-status` | Progress dashboard with cost tracking and wiring health |
 | `/spec-exec` | Execute one iteration with quality gates |
 | `/spec-loop` | Wave-based loop with batching, cost controls, human checkpoints |
 | `/spec-team` | 4-agent team execution (Implementer + Tester + Reviewer + Debugger) |
@@ -39,23 +40,27 @@ references/                 - Reference docs for agents
 
 ## Model Routing
 
+Each agent uses the model best suited to its task nature:
+
 | Agent | Model | Phase | Rationale |
 |-------|-------|-------|-----------|
-| spec-planner | Opus | Requirements + Design | Deep reasoning for edge cases, security |
-| spec-reviewer | Opus | Review | Code quality, security, architecture |
-| spec-tasker | Sonnet | Task breakdown | Fast structured decomposition |
-| spec-implementer | Sonnet | Implementation | Code generation |
-| spec-tester | Sonnet | Testing | Verification |
-| spec-debugger | Sonnet | Debugging | Fix issues |
-| spec-acceptor | Sonnet | Acceptance | Traceability |
-| spec-documenter | Sonnet | Documentation | Doc generation |
-| spec-consultant | Sonnet | Brainstorming | Domain expertise |
-| spec-validator | Sonnet | Validation | Checklist verification |
+| spec-planner | Opus | Requirements + Design | Deep reasoning for edge cases, security, architecture tradeoffs |
+| spec-reviewer | Opus | Review | Security analysis, subtle bugs, cross-task consistency checking |
+| spec-acceptor | Opus | Acceptance | Formal sign-off requires deep judgment about requirement coverage |
+| spec-consultant | Opus | Brainstorming | Domain expertise benefits from deeper reasoning and nuanced analysis |
+| spec-tasker | Sonnet | Task breakdown | Fast, structured decomposition with file ownership assignment |
+| spec-implementer | Sonnet | Implementation | Code generation, parallelizable with file boundaries |
+| spec-tester | Sonnet | Testing | Test execution, cross-task regression detection |
+| spec-debugger | Sonnet | Debugging | Targeted fixes, wiring repair |
+| spec-documenter | Sonnet | Documentation | Doc generation from spec and code |
+| spec-validator | Sonnet | Validation | Checklist-based verification |
+
+**Principle**: Opus for judgment and reasoning (planning, reviewing, accepting, consulting). Sonnet for structured execution (implementing, testing, debugging, documenting).
 
 ## Key Concepts
 
 ### EARS Notation
-All acceptance criteria use Easy Approach to Requirements Syntax with 5 patterns:
+All acceptance criteria use Easy Approach to Requirements Syntax with 6 patterns:
 - **Event-Driven**: WHEN [trigger] THE SYSTEM SHALL [behavior]
 - **State-Driven**: WHILE [state] THE SYSTEM SHALL [behavior]
 - **Conditional**: IF [condition] WHEN [trigger] THE SYSTEM SHALL [behavior]
@@ -64,10 +69,21 @@ All acceptance criteria use Easy Approach to Requirements Syntax with 5 patterns
 - **Feature-Specific**: WHERE [feature] WHEN [trigger] THE SYSTEM SHALL [behavior]
 
 ### state.json
-Machine-readable execution state (~200 tokens). Replaces progress.md as the primary state mechanism. Tracks: task statuses, wave assignments, token usage, budget cap, quality gate results, integrity manifest, audit log.
+Machine-readable execution state (~200 tokens). Tracks: task statuses, wave assignments, wiring status, token usage, budget cap, quality gate results, integrity manifest, audit log.
 
-### Wave-Based Execution
-Tasks form a DAG. Topological sort assigns waves. Independent tasks in the same wave are batched (2-3 per iteration). This reduces iterations by 3-5x compared to one-task-per-iteration.
+### Wired Tracking
+Every task tracks a `Wired` field (pending/yes/n/a) alongside its Status. This prevents the #1 failure mode: code that exists but isn't connected to the application. A task is only truly complete when Status=completed AND Wired=yes (or n/a for infra tasks). The tester refuses to test unwired code, the reviewer rejects it, and the acceptor flags it.
+
+### Wave-Based Execution with Parallel Agents
+Tasks form a DAG. Topological sort assigns waves. Independent tasks in the same wave with non-overlapping file ownership are executed in parallel using isolated git worktrees. This reduces both iterations (3-5x) and wall-clock time.
+
+### Parallel Safety Model
+Each task declares a `Files` field listing which files it will create/modify. The tasker ensures no two tasks in the same wave share files. During execution:
+- Parallel implementers run in `isolation: "worktree"` (separate repo copies)
+- Each implementer is constrained to its assigned files
+- Changes merge back sequentially with quality gates
+- The Opus reviewer reviews the full wave's changes together to catch cross-task inconsistencies
+- The tester runs the full suite after parallel merges to detect cross-task regressions
 
 ### Quality Gates
 After every implementation iteration: Lint -> Type Check -> Regression Test -> Secret Scan. Gates are auto-detected from project config or configured in init.sh.
@@ -87,7 +103,7 @@ After every implementation iteration: Lint -> Type Check -> Regression Test -> S
 Specs are created in the target project at `.claude/specs/<feature-name>/`:
 - `requirements.md` - User stories with EARS acceptance criteria
 - `design.md` - Architecture with traceability annotations
-- `tasks.md` - Implementation tasks with wave assignments
+- `tasks.md` - Implementation tasks with wave assignments and wiring status
 - `state.json` - Machine-readable execution state
 - `init.sh` - Project-specific build/test/lint commands
 - `lessons.json` - Shared across specs, feedback loop
@@ -96,9 +112,16 @@ Specs are created in the target project at `.claude/specs/<feature-name>/`:
 
 ## CI/CD Scripts
 
-Thin shell scripts in `scripts/` for headless execution:
-- `spec-exec.sh --spec-name <name>` - Single iteration
-- `spec-loop.sh --spec-name <name>` - Full loop
-- `spec-team.sh --spec-name <name>` - Team execution
+Shell scripts in `scripts/` for headless execution:
+- `spec-exec.sh [--spec-name <name>] [--no-worktree]` - Single iteration
+- `spec-loop.sh [--spec-name <name>] [--max-iterations N] [--no-worktree]` - Full loop
+- `spec-team.sh [--spec-name <name>] [--max-iterations N] [--no-worktree]` - Team execution
 
-These are ~20-line wrappers that validate input and delegate to `claude -p`.
+Features:
+- **Auto-detect**: If only one spec exists, `--spec-name` is optional
+- **Worktree isolation**: Runs in a `spec/<name>` branch via git worktree (disable with `--no-worktree`)
+- **Checkpoint recovery**: Creates checkpoint commits before each iteration, rolls back on crash
+- **Crash safety net**: Detects if state.json wasn't updated and appends a fallback audit log entry
+- **Duplicate prevention**: spec-team.sh prevents concurrent runs on the same project+spec
+- **Cross-spec dependencies**: Validates dependent specs are complete before execution (with DFS cycle detection)
+- **PR suggestion**: Prints `gh pr create` command on completion

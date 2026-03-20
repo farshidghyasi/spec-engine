@@ -14,12 +14,12 @@ allowed-tools:
 
 # /spec-team Command
 
-Execute spec implementation with a 4-agent team: Implementer, Tester, Reviewer, Debugger.
+Execute spec implementation with a 4-agent team: Implementer, Tester, Reviewer, Debugger. Supports parallel implementation within waves for independent tasks.
 
 ## Usage
 
 ```
-/spec-team [spec-name] [--max-iterations N]
+/spec-team [spec-name] [--max-iterations N] [--no-parallel]
 ```
 
 ## When to Use
@@ -32,15 +32,15 @@ Use `/spec-team` instead of `/spec-loop` when:
 
 ## Token Cost
 
-Agent teams use ~2-3x more tokens than single-agent mode because each agent has its own context. The **handoff file protocol** reduces this from the old plugin's 4x overhead.
+Agent teams use ~2-3x more tokens than single-agent mode because each agent has its own context. The **handoff file protocol** reduces this from the old plugin's 4x overhead. Parallel execution adds marginal overhead but reduces wall-clock time.
 
 ## Team Roles
 
 | Agent | Model | Role | Tools |
 |-------|-------|------|-------|
-| Implementer | Sonnet | Writes code + persistent tests | Read, Write, Edit, Glob, Grep, Bash |
-| Tester | Sonnet | Verifies + error-path tests + screenshots | Read, Write, Glob, Grep, Bash, Playwright |
-| Reviewer | Opus | Read-only review + persisted reports | Read, Glob, Grep |
+| Implementer | Sonnet | Writes code + persistent tests + wiring | Read, Write, Edit, Glob, Grep, Bash |
+| Tester | Sonnet | Checks wiring, verifies end-to-end + error paths | Read, Write, Glob, Grep, Bash, Playwright |
+| Reviewer | Opus | Read-only review + cross-task consistency + persisted reports | Read, Glob, Grep |
 | Debugger | Sonnet | Fixes issues (max 2 retries) | Read, Write, Edit, Glob, Grep, Bash |
 
 ## Handoff File Protocol
@@ -62,31 +62,62 @@ Each agent receives:
 
 ## Team Workflow
 
-For each task:
+### Per-Wave Execution
 
-### Phase 1: Implementation
-1. Read state.json, pick next pending task
-2. Spawn Implementer with task context
-3. Implementer writes code, tests, produces handoff file
-4. Run quality gates (lint, typecheck, regression)
-5. If gates fail: Spawn Debugger (max 2 retries)
+For each wave, the team processes tasks through a parallel-then-sequential pipeline:
 
-### Phase 2: Testing
-6. Spawn Tester with task context + implementer's handoff
-7. Tester checks integration, runs tests, checks error paths, takes screenshots
-8. Tester writes handoff file with results
-9. If FAIL: Spawn Debugger with tester's handoff, then re-test (max 2 attempts)
+#### Phase 1: Parallel Implementation + Wiring
 
-### Phase 3: Review
-10. Spawn Reviewer with task context + tester's handoff + git diff
-11. Reviewer checks security, quality, architecture
-12. Reviewer writes review report to `evidence/reviews/`
-13. If REJECTED: Spawn Debugger with reviewer's feedback, then re-review (max 2 attempts)
+1. Read state.json, collect all pending tasks in the current wave
+2. **Build parallel groups** from file ownership (same algorithm as spec-loop):
+   - Tasks with non-overlapping Files run in parallel
+   - Tasks with file conflicts run sequentially after the parallel group
 
-### Phase 4: Commit
-14. Update state.json: task completed, tokens used, audit log
-15. Commit with descriptive message
-16. Move to next task
+3. **For each parallel group**, spawn Implementer agents simultaneously:
+   - If 1 task: spawn a single Implementer
+   - If 2+ tasks: spawn parallel Implementers, each with `isolation: "worktree"`
+   - Each Implementer receives ONLY its assigned task and file boundaries
+   - **All parallel Implementers are launched in a single message** (multiple Agent tool calls)
+   - Each writes code, tests, wires it in, sets Wired field, produces handoff file
+
+4. Merge parallel results back (sequentially, one worktree at a time)
+5. Run quality gates ONCE after all merges: lint, typecheck, regression
+6. If gates fail: Spawn Debugger (max 2 retries)
+
+#### Phase 2: Parallel Wiring Check + Testing
+
+7. **For each completed task in the group**, spawn Tester agents:
+   - If 1 task: spawn a single Tester
+   - If 2+ tasks with non-overlapping test scope: spawn parallel Testers
+   - Each Tester receives task context + its Implementer's handoff
+   - Tester checks Wired field FIRST — if pending, reports WIRING INCOMPLETE
+   - Tester checks integration, runs tests, checks error paths, takes screenshots
+   - Tester writes handoff file with results
+
+8. If any task fails testing:
+   - If WIRING FAIL: Spawn Debugger to fix wiring, then re-test
+   - If FUNCTIONAL FAIL: Spawn Debugger with tester's handoff, then re-test (max 2 attempts)
+
+#### Phase 3: Wave Review (SEQUENTIAL — Opus)
+
+9. **After ALL tasks in the wave pass testing**, spawn a SINGLE Reviewer for the entire wave:
+   - Reviewer receives: all task contexts + all tester handoffs + full git diff for the wave
+   - Reviewer checks security, quality, architecture for each task
+   - **Reviewer ALSO checks cross-task consistency**:
+     - Do parallel-implemented components interact correctly?
+     - Are shared interfaces consistent across tasks?
+     - Do error handling patterns match across the wave?
+     - Are naming conventions consistent?
+   - Reviewer writes one review report per task to `evidence/reviews/`
+   - If any task REJECTED: Spawn Debugger with reviewer's feedback, then re-review (max 2 attempts)
+
+**Why review is sequential**: The Opus reviewer needs to see the full wave's changes together to catch cross-task inconsistencies that per-task review would miss. This is the consistency safety net for parallel execution.
+
+#### Phase 4: Commit
+
+10. Update state.json: all wave tasks completed, tokens used, audit log
+11. Commit with descriptive message listing all task IDs
+12. Move to next wave
 
 ## Escalation
 
@@ -97,6 +128,6 @@ If Debugger fails twice on the same issue:
 
 ## Completion
 
-When ALL tasks have status "completed" in state.json:
-- Present summary with quality metrics
-- Suggest next steps: /spec-accept, /spec-docs, PR creation
+When ALL tasks have status "completed" AND wired is "yes" or "n/a" in state.json:
+- Present summary with quality metrics, wiring health, and parallel execution stats
+- Suggest next steps: /spec-accept, /spec-docs, `gh pr create --head spec/<name>`
