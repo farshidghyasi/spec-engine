@@ -19,7 +19,7 @@ Wave-based execution loop. Batches independent tasks, runs them in parallel wher
 ## Usage
 
 ```
-/spec-loop [spec-name] [--dry-run] [--max-iterations N] [--no-parallel]
+/spec-loop [spec-name] [--dry-run] [--max-iterations N] [--no-parallel] [--yolo]
 ```
 
 ## Dry-Run Mode
@@ -54,6 +54,17 @@ Proceed? [Yes / Adjust budget / Cancel]
 ```
 
 Do NOT execute anything in dry-run mode.
+
+## YOLO Mode
+
+If `--yolo` is specified, the loop runs fully autonomously with NO human pauses:
+
+- **Stuck detection**: Instead of pausing with AskUserQuestion, automatically skip the task after 3 failures and continue to the next task. Log the skip in state.json audit log.
+- **Human checkpoints**: Disabled entirely. Do NOT call AskUserQuestion for periodic progress checks.
+- **Budget cap**: Disabled. Do NOT pause when token budget is reached — continue until all tasks complete or max iterations hit.
+- **Integrity mismatch**: Log a warning but proceed without prompting.
+
+In yolo mode, the ONLY thing that stops execution is `--max-iterations` or all tasks completing. Do NOT use AskUserQuestion at any point during yolo execution.
 
 ## Execution Loop
 
@@ -143,19 +154,16 @@ For each parallel group:
 #### 2d: Post-Batch Checks
 
 1. **Stuck detection**: If any task has `failures >= 3`:
-   - Pause execution
-   - Present failure history to user via AskUserQuestion
-   - Options: "Skip this task" / "Retry with different approach" / "Abort"
+   - **If `--yolo`**: Log "AUTO-SKIP: T-X after 3 failures" to state.json audit log, mark task as "skipped", continue to next task
+   - **Otherwise**: Pause execution, present failure history to user via AskUserQuestion. Options: "Skip this task" / "Retry with different approach" / "Abort"
 
 2. **Human checkpoint**: If `tasks_since_checkpoint >= human_checkpoint_interval`:
-   - Present progress summary
-   - Ask user via AskUserQuestion: "Continue?" / "Pause" / "Abort"
-   - Reset `tasks_since_checkpoint` to 0
+   - **If `--yolo`**: Skip checkpoint entirely, do NOT pause
+   - **Otherwise**: Present progress summary, ask user via AskUserQuestion: "Continue?" / "Pause" / "Abort", reset `tasks_since_checkpoint` to 0
 
 3. **Budget check**: If `total_tokens >= budget_cap`:
-   - Pause execution
-   - Show cost summary
-   - Ask user: "Increase budget" / "Abort"
+   - **If `--yolo`**: Log warning "Budget cap exceeded, continuing in yolo mode" to audit log, continue
+   - **Otherwise**: Pause execution, show cost summary, ask user: "Increase budget" / "Abort"
 
 4. **Completion check**: Read state.json.tasks. If ALL tasks have status "completed" AND wired is "yes" or "n/a", break out of loop. Tasks with wired="pending" are NOT done.
 
