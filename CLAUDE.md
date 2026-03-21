@@ -86,7 +86,13 @@ Each task declares a `Files` field listing which files it will create/modify. Th
 - The tester runs the full suite after parallel merges to detect cross-task regressions
 
 ### Quality Gates
-After every implementation iteration: Lint -> Type Check -> Regression Test -> Secret Scan. Gates are auto-detected from project config or configured in init.sh.
+After every implementation iteration: Lint -> Type Check -> Regression Test -> Secret Scan -> Integration Smoke Test (post-wave). Gates are auto-detected from project config or configured in init.sh. Gates run in **diff mode** when pre-existing errors exist — comparing error counts against a baseline to fail only on NEW errors.
+
+### Import Manifest
+Before dispatching each wave, the orchestrator scans completed task files and builds an import manifest of exact export names, function signatures, and file paths. This is included in every agent's prompt to prevent agents from guessing import names.
+
+### Post-Agent Verification
+After each parallel agent completes: (1) auto-commit its work in the worktree, (2) enforce shared file boundaries by reverting unauthorized modifications, (3) cross-check imports between parallel agents before merging.
 
 ### Feedback Loop
 `lessons.json` captures lessons from retrospectives and debugging sessions. Future `/spec` and `/spec-brainstorm` commands read these lessons to improve spec quality.

@@ -39,13 +39,15 @@ Execute a single iteration of spec-driven implementation with quality gates, par
 
 ### Step 3: Select Task Batch and Build Parallel Groups
 
-1. Read `state.json.waves` to find the current wave
-2. Collect pending tasks in the current wave
-3. **Build parallel groups** from file ownership:
+1. Record the current git SHA as `pre_wave_sha` (for wave rollback if needed)
+2. Read `state.json.waves` to find the current wave
+3. Collect pending tasks in the current wave
+4. **Build parallel groups** from file ownership:
    - Read `files` field from each task in state.json
    - Tasks with non-overlapping files form a parallel group
    - Tasks with file conflicts go into sequential sub-batches
-4. Update `state.json.execution.current_batch` with the first parallel group's task IDs
+5. Update `state.json.execution.current_batch` with the first parallel group's task IDs
+6. **Generate import manifest**: Scan all files created/modified by completed tasks in previous waves. For each file, extract its exports (functions, classes, types, constants). Build a manifest of exact export names, function signatures, and file paths. This prevents agents from guessing import names.
 
 ### Step 4: Implementation
 
@@ -57,10 +59,15 @@ Execute a single iteration of spec-driven implementation with quality gates, par
   - **Layer 0**: state.json summary (~200 tokens) — current wave, batch, completed tasks
   - **Layer 1**: ONLY its assigned task description from tasks.md
   - **File boundaries**: "You MUST only create/modify these files: [list from Files field]"
+  - **Layer 1.5**: Import manifest from completed waves — exact export names, function signatures, and file paths. "Use EXACTLY these imports — do not guess or assume names."
   - **Layer 2** (first iteration or after errors): Full requirements.md and design.md
   - **Context from lessons.json**: If relevant lessons exist, include top 3
 - **All parallel agents are launched in a single message** (multiple Agent tool calls)
 - Wait for all agents to complete
+- **Post-agent verification** (for each worktree, before merge):
+  a. **Auto-commit**: `git add <task Files>` then `git commit -m "feat: T-{id} — {subject}"` in the worktree
+  b. **Shared file enforcement**: `git diff --name-only HEAD~1` — if any shared file was modified, revert it and log a warning
+  c. **Cross-agent import resolution**: Scan each agent's imports of other agents' files. If mismatches found, fix directly via Edit or re-dispatch sequentially
 - Merge worktree changes back sequentially
 
 Tell each implementer:
@@ -71,19 +78,32 @@ Tell each implementer:
 - **Only create/modify your assigned files** — do not touch files owned by other tasks
 - Report files changed and test file locations
 
-### Step 5: Quality Gates
+### Step 4.5: Post-Merge Regeneration
 
-After all implementers complete (and worktrees are merged), run quality gates sequentially:
+Run commands from `state.json.parallel.post_merge_commands` (lock file regen, codegen, cache clean). **If any command fails, treat it as a blocking error** — halt, report, attempt auto-fix in yolo mode, skip wave if still failing.
 
-1. **Lint** (if configured): Run `state.json.quality_gates.lint_cmd` via Bash
-2. **Type Check** (if configured): Run `state.json.quality_gates.typecheck_cmd` via Bash
-3. **Regression Test** (if configured): Run `state.json.quality_gates.test_cmd` via Bash
-4. **Secret Scan**: Check staged files for sensitive patterns (.env, *.pem, *.key, credentials)
+### Step 5: Quality Gates (Diff Mode)
+
+After all implementers complete (and worktrees are merged), run quality gates in **diff mode**:
+
+1. Capture changed files: `git diff --name-only <pre_wave_sha> HEAD`
+2. **Lint** (if configured): Run linter on changed files only if supported, otherwise run full lint and compare error count against `state.json.quality_gates.baseline_errors` — fail only if count increases
+3. **Type Check** (if configured): Run `state.json.quality_gates.typecheck_cmd`. If pre-existing errors exist, compare against baseline — fail only on NEW errors in changed files
+4. **Regression Test** (if configured): Run `state.json.quality_gates.test_cmd` — pre-existing failures should be baselined
+5. **Secret Scan**: Only scan changed files for sensitive patterns
 
 If any gate fails:
 - Spawn **spec-debugger** agent to fix the issue (max 2 retries per task)
 - Re-run the failing gate after each fix
 - If 2 retries exhausted: **Task Rollback** — `git checkout` the changed files, increment `tasks[id].failures` in state.json
+
+### Step 5.5: Integration Smoke Test
+
+If `state.json.quality_gates.integration_cmd` is configured, run it after quality gates pass. On failure: roll back the wave to `pre_wave_sha` and re-run sequentially.
+
+### Step 5.6: Wired Status Verification
+
+For each task marked `wired: "yes"`, verify the claim by grepping the app entry point for an import of the task's exports. If not found, downgrade to `wired: "pending"` and log a warning.
 
 ### Step 6: Update State
 

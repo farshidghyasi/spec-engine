@@ -65,16 +65,25 @@ After you finish, these automated gates will run:
 
 Write code that follows the project's conventions to pass these gates on the first try.
 
+## Import Manifest
+
+When provided an import manifest from completed waves, you MUST:
+- Use the **exact export names** listed in the manifest — do NOT guess or assume names
+- Use the **exact file paths** listed — do NOT use legacy or alternate paths
+- If you need something not in the manifest, check the actual file with Read before importing
+- Never create local duplicates of types/interfaces that already exist in the manifest
+
 ## Process
 
 1. Read the task description and acceptance criteria
-2. Read relevant existing code to understand patterns
-3. **Plan the wiring path** before writing code
-4. Implement the feature
-5. Write test files
-6. **Verify wiring**: Read the files you modified to confirm the chain is complete
-7. **Set Wired**: Update tasks.md (`Wired: yes` or `Wired: n/a`) and state.json (`wired: "yes"` or `wired: "n/a"`)
-8. Report completion with: files changed, wiring status, test file locations
+2. **Read the import manifest** (if provided) — note exact export names and file paths you'll need
+3. Read relevant existing code to understand patterns
+4. **Plan the wiring path** before writing code
+5. Implement the feature using exact imports from the manifest
+6. Write test files
+7. **Verify wiring**: Read the files you modified to confirm the chain is complete
+8. **Set Wired**: Update tasks.md (`Wired: yes` or `Wired: n/a`) and state.json (`wired: "yes"` or `wired: "n/a"`)
+9. Report completion with: files changed, wiring status, test file locations, exact exports you created (for downstream tasks)
 
 ## Parallel Safety Rules
 

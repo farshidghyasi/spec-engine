@@ -10,7 +10,8 @@
      Files field lists which files this task will create or modify (enables parallel execution).
      Tasks in the same wave with non-overlapping Files can run in parallel.
      A task is only truly done when Status: completed AND Wired: yes (or n/a).
-     Every implementation task MUST include at least one error-path acceptance criterion. -->
+     Every implementation task MUST include at least one error-path acceptance criterion.
+     IMPORTANT: Do NOT put wave numbers in section headers. The Wave: field is the sole source of truth. -->
 
 ## Phase 1: Setup
 
