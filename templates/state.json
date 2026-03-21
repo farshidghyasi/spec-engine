@@ -45,6 +45,8 @@
     "typecheck_cmd": null,
     "test_cmd": null,
     "dev_cmd": null,
+    "integration_cmd": null,
+    "baseline_errors": null,
     "allowed_commands": [],
     "last_regression_pass": null
   },

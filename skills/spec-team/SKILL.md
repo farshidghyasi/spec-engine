@@ -66,22 +66,34 @@ Each agent receives:
 
 For each wave, the team processes tasks through a parallel-then-sequential pipeline:
 
-#### Phase 1: Parallel Implementation + Wiring
+#### Phase 0: Pre-Wave Setup
 
 1. Read state.json, collect all pending tasks in the current wave
-2. **Build parallel groups** from file ownership (same algorithm as spec-loop):
+2. Record the current git SHA as `pre_wave_sha`
+3. **Generate import manifest**: Scan completed task files from previous waves, extract all exports (functions, classes, types, constants) with exact names and file paths
+4. **Build parallel groups** from file ownership (same algorithm as spec-loop):
    - Tasks with non-overlapping Files run in parallel
    - Tasks with file conflicts run sequentially after the parallel group
 
-3. **For each parallel group**, spawn Implementer agents simultaneously:
+#### Phase 1: Parallel Implementation + Wiring
+
+1. **For each parallel group**, spawn Implementer agents simultaneously:
    - If 1 task: spawn a single Implementer
    - If 2+ tasks: spawn parallel Implementers, each with `isolation: "worktree"`
-   - Each Implementer receives ONLY its assigned task and file boundaries
+   - Each Implementer receives:
+     - ONLY its assigned task and file boundaries
+     - **Import manifest from completed waves** — exact export names and file paths. "Use EXACTLY these imports."
    - **All parallel Implementers are launched in a single message** (multiple Agent tool calls)
    - Each writes code, tests, wires it in, sets Wired field, produces handoff file
 
-4. Merge parallel results back (sequentially, one worktree at a time)
-5. Run quality gates ONCE after all merges: lint, typecheck, regression
+2. **Post-agent verification** (for each worktree, before merge):
+   a. **Auto-commit**: `git add <task Files>` then `git commit -m "feat: T-{id} — {subject}"`
+   b. **Shared file enforcement**: If agent modified any shared file, revert and log warning
+   c. **Cross-agent import resolution**: Verify imports between parallel agents match actual exports. Fix mismatches directly or re-dispatch sequentially.
+
+3. Merge parallel results back (sequentially, one worktree at a time)
+4. Run **post-merge commands** — treat failures as blocking errors
+5. Run quality gates in **diff mode** ONCE after all merges: lint, typecheck, regression (compare against baseline for pre-existing errors)
 6. If gates fail: Spawn Debugger (max 2 retries)
 
 #### Phase 2: Parallel Wiring Check + Testing
@@ -113,11 +125,16 @@ For each wave, the team processes tasks through a parallel-then-sequential pipel
 
 **Why review is sequential**: The Opus reviewer needs to see the full wave's changes together to catch cross-task inconsistencies that per-task review would miss. This is the consistency safety net for parallel execution.
 
-#### Phase 4: Commit
+#### Phase 4: Post-Wave Verification
 
-10. Update state.json: all wave tasks completed, tokens used, audit log
-11. Commit with descriptive message listing all task IDs
-12. Move to next wave
+10. **Integration smoke test**: If `state.json.quality_gates.integration_cmd` is configured, run it. On failure: roll back to `pre_wave_sha`, re-run wave sequentially.
+11. **Wired status verification**: For each task marked `wired: "yes"`, grep the app entry point for an import of the task's exports. Downgrade to `"pending"` if not found.
+
+#### Phase 5: Commit
+
+12. Update state.json: all wave tasks completed, tokens used, audit log
+13. Commit with descriptive message listing all task IDs
+14. Move to next wave
 
 ## Escalation
 

@@ -85,7 +85,8 @@ In yolo mode, the ONLY thing that stops execution is `--max-iterations` or all t
 For each wave (starting from `state.json.execution.current_wave`):
 
 #### 2a: Collect Pending Tasks
-Read state.json.waves[current_wave].tasks. Filter to tasks with status "pending".
+1. Record the current git SHA as `pre_wave_sha` (for wave rollback if needed)
+2. Read state.json.waves[current_wave].tasks. Filter to tasks with status "pending".
 
 #### 2b: Pre-Parallel Setup
 
@@ -94,6 +95,23 @@ Before spawning parallel agents:
 1. **Collect dependency additions**: If multiple tasks in the wave need new packages, install ALL dependencies first on the main branch (read task descriptions for `npm install`, `pip install`, etc.). This prevents lockfile conflicts.
 2. **Validate no shared file overlap**: Check each task's Files against `state.json.parallel.shared_files`. If any task lists a shared file, move it to a sequential sub-batch.
 3. **Validate import dependencies**: For each pair of tasks in the wave, check if task B's Files reference imports from task A's Files. If so, they CANNOT be parallel — sequentialize them.
+4. **Generate import manifest**: Scan all files created/modified by completed tasks in previous waves. For each file, extract its exports (functions, classes, types, constants). Build a manifest like:
+
+```
+== Import Manifest (from completed waves) ==
+
+apps/api/src/middleware/admin-jwt.middleware.ts
+  → export function adminJwt(req, res, next)
+  → export const requireAdminJwt = adminJwt
+  → export type AdminPermission = 'read' | 'write' | 'admin'
+  → export type AdminRole = 'super_admin' | 'admin'
+
+packages/shared-types/src/admin.ts
+  → export interface AdminUser { id: string; email: string; role: AdminRole }
+  → export type CreateAdminInput = Omit<AdminUser, 'id'>
+```
+
+Use Grep/Read to extract export statements from completed task files. Include this manifest in every parallel agent's prompt for the current wave. This prevents agents from guessing import names.
 
 #### 2c: Build Parallel Groups
 
@@ -126,48 +144,98 @@ For each parallel group:
      - state.json summary (Layer 0: ~200 tokens)
      - ONLY its assigned task description from tasks.md (Layer 1)
      - Its assigned file boundaries: "You MUST only create/modify these files: [list]. Do NOT modify any other files. Do NOT refactor existing function signatures. Do NOT run formatters. Note any cross-boundary needs in your handoff file."
+     - **Import manifest from completed waves** (Layer 1.5): exact export names, function signatures, and file paths from all code completed in previous waves. "Use EXACTLY these imports — do not guess or assume names."
      - Full spec context on first iteration or after errors (Layer 2)
      - Relevant lessons from lessons.json
    - **All parallel agents are launched in a single message** (multiple Agent tool calls)
    - Wait for all agents to complete
 
-4. **Atomic merge with fallback**: Record pre-merge HEAD SHA. Merge each worktree's changes back in task-ID order:
+4. **Post-agent verification** (for each worktree, before merge):
+
+   a. **Auto-commit worktree**: The agent may not commit its work. After each agent completes:
+      ```bash
+      cd <worktree_path>
+      git add <files from task's Files field>
+      git commit -m "feat: T-{id} — {task subject}"
+      ```
+      Only add files listed in the task's Files array — do not `git add -A`.
+
+   b. **Shared file enforcement**: Check if the agent modified any shared files:
+      ```bash
+      cd <worktree_path>
+      git diff --name-only HEAD~1 | grep -f <shared_files_list>
+      ```
+      If any shared file was modified, revert those changes:
+      ```bash
+      git checkout HEAD~1 -- <shared_file>
+      git commit --amend --no-edit
+      ```
+      Log a warning: "Agent for T-X modified shared file <name>, reverted."
+
+   c. **Cross-agent import resolution**: After ALL agents in the group complete but before merging, scan each agent's output for imports from other agents' files. For every `import { X } from './Y'` in agent A's code, verify that agent B's code (which owns file Y) actually exports X. If mismatches are found:
+      - Log all mismatches
+      - Re-dispatch the mismatched agents sequentially (not in parallel) with the correct export names from the import manifest
+      - If only 1-2 mismatches: fix them directly via Edit instead of re-dispatching
+
+5. **Atomic merge with fallback**: Record pre-merge HEAD SHA. Merge each worktree's changes back in task-ID order:
    - Exclude files in `state.json.parallel.generated_files` from merge
    - If ANY merge fails: reset to pre-merge SHA, fall back to sequential execution for the entire group
    - Shared file changes (noted in handoff files) are applied in a reconciliation step after all agent merges
 
-5. **Post-merge regeneration**: Run commands from `state.json.parallel.post_merge_commands`:
+6. **Post-merge regeneration**: Run commands from `state.json.parallel.post_merge_commands`:
    - Lock file regeneration (`npm install` / `pnpm install`)
    - Codegen (`npx prisma generate`, etc.)
    - Cache clean (`rm -rf .next dist node_modules/.cache`)
    - Do NOT run formatters yet
+   - **CRITICAL**: If any post-merge command fails, treat it as a blocking error. Halt the wave, report the error. In yolo mode, attempt an auto-fix (e.g., add missing dependency, fix tsconfig exclude) and retry once. If still failing, mark the wave as failed and skip.
 
-6. **Run quality gates** via Bash:
-   - Lint (includes formatting) -> Type Check -> Regression Test -> Secret Scan
+7. **Run quality gates in diff mode** via Bash:
+   - Capture the list of files changed in this batch: `git diff --name-only <pre-merge-SHA> HEAD`
+   - **Lint**: Run linter only on changed files if the linter supports file arguments. Otherwise run full lint but compare error count against `state.json.quality_gates.baseline_errors` — fail only if count increases.
+   - **Type Check**: Run full typecheck (incremental if supported). If pre-existing errors exist, compare against baseline — fail only on NEW errors in changed files.
+   - **Regression Test**: Run the full test suite. Pre-existing failures should be baselined.
+   - **Secret Scan**: Only scan changed files.
    - On failure: spawn spec-debugger (max 2 retries)
    - On persistent failure: task rollback, increment failures in state.json
 
-7. **Update state.json**: mark completed tasks, record tokens, append audit log
+8. **Update state.json**: mark completed tasks, record tokens, append audit log
 
-7. **Commit** with descriptive message listing all task IDs in the batch
+9. **Commit** with descriptive message listing all task IDs in the batch
 
-#### 2d: Post-Batch Checks
+#### 2e: Post-Wave Checks
 
-1. **Stuck detection**: If any task has `failures >= 3`:
+After ALL parallel groups and sequential sub-batches in a wave complete:
+
+1. **Integration smoke test**: If `state.json.quality_gates.integration_cmd` is configured, run it:
+   - For API projects: start the server, hit key endpoints, verify they return expected status codes
+   - For frontend projects: start the dev server, load main pages, verify no uncaught errors
+   - Example: `node scripts/smoke-test.js` or `pnpm test:integration`
+   - **On failure**: Roll back the ENTIRE wave (`git reset --hard <pre-wave-SHA>`), log the failure, and re-run the wave's tasks SEQUENTIALLY instead of in parallel. This catches incompatibilities that parallel execution introduced.
+   - **On success**: Continue to next checks.
+
+2. **Wired status verification**: For each task in the wave marked `wired: "yes"` in state.json, verify the claim:
+   - **For API routes**: Grep the app entry point (e.g., `app.ts`, `server.ts`, `index.ts`) for an import of the route's export
+   - **For React components**: Grep the router config for the component's import
+   - **For services/utilities**: Grep for at least one call site outside the defining file
+   - **For middleware**: Grep for `.use()` or equivalent registration
+   - If the import/usage is NOT found, downgrade `wired` to `"pending"` in state.json and log: "T-X claims wired but no import found in entry point. Downgraded to pending."
+   - Tasks downgraded to pending will be picked up in the integration phase or next iteration.
+
+3. **Stuck detection**: If any task has `failures >= 3`:
    - **If `--yolo`**: Log "AUTO-SKIP: T-X after 3 failures" to state.json audit log, mark task as "skipped", continue to next task
    - **Otherwise**: Pause execution, present failure history to user via AskUserQuestion. Options: "Skip this task" / "Retry with different approach" / "Abort"
 
-2. **Human checkpoint**: If `tasks_since_checkpoint >= human_checkpoint_interval`:
+4. **Human checkpoint**: If `tasks_since_checkpoint >= human_checkpoint_interval`:
    - **If `--yolo`**: Skip checkpoint entirely, do NOT pause
    - **Otherwise**: Present progress summary, ask user via AskUserQuestion: "Continue?" / "Pause" / "Abort", reset `tasks_since_checkpoint` to 0
 
-3. **Budget check**: If `total_tokens >= budget_cap`:
+5. **Budget check**: If `total_tokens >= budget_cap`:
    - **If `--yolo`**: Log warning "Budget cap exceeded, continuing in yolo mode" to audit log, continue
    - **Otherwise**: Pause execution, show cost summary, ask user: "Increase budget" / "Abort"
 
-4. **Completion check**: Read state.json.tasks. If ALL tasks have status "completed" AND wired is "yes" or "n/a", break out of loop. Tasks with wired="pending" are NOT done.
+6. **Completion check**: Read state.json.tasks. If ALL tasks have status "completed" AND wired is "yes" or "n/a", break out of loop. Tasks with wired="pending" are NOT done.
 
-5. **Wave advancement**: If all tasks in current wave are completed, increment `current_wave`.
+7. **Wave advancement**: If all tasks in current wave are completed, increment `current_wave`.
 
 ### Step 3: Max Iterations
 
@@ -216,5 +284,9 @@ If the session is interrupted (user exits, timeout, etc.):
 
 1. **Retry**: Debugger fixes, re-run gates (2 attempts)
 2. **Task Rollback**: git checkout changed files, mark task failed
-3. **Wave Rollback**: git reset to pre-wave state (if 3+ tasks in wave fail)
+3. **Wave Rollback**: git reset to pre-wave state. Triggered when:
+   - Integration smoke test fails after parallel wave merge
+   - 3+ tasks in wave fail quality gates
+   - Post-merge commands fail after retry
+   After rollback, re-run the wave sequentially instead of in parallel.
 4. **Human Escalation**: Pause, present details, await user decision

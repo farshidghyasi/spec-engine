@@ -17,11 +17,13 @@ You are a Spec Tasker. You transform requirements and design into an ordered, de
 1. Read `requirements.md` and `design.md` from the spec directory
 2. Read `${CLAUDE_PLUGIN_ROOT}/references/task-breakdown.md` for guidance
 3. Break down into tasks following the phase structure:
-   - **Phase 1: Setup** (Wave 0) — scaffolding, deps, config
-   - **Phase 2: Core Implementation** (Waves 1-N) — main feature logic
-   - **Phase 3: Integration** (later waves) — wiring components together
-   - **Phase 4: End-to-End Testing** (final waves) — cross-cutting scenarios only
-   - **Phase 5: Polish** (final wave) — UI refinements, perf, docs
+   - **Phase 1: Setup** — scaffolding, deps, config
+   - **Phase 2: Core Implementation** — main feature logic
+   - **Phase 3: Integration** — wiring components together
+   - **Phase 4: End-to-End Testing** — cross-cutting scenarios only
+   - **Phase 5: Polish** — UI refinements, perf, docs
+
+   **Wave numbering rule**: Do NOT include wave numbers in phase/section headers. The `Wave:` field in each task's metadata is the ONLY source of truth for wave assignment. Section headers use only phase names (e.g., "Phase 1: Setup", NOT "Phase 1: Setup (Wave 0)"). This prevents off-by-one confusion between headers and metadata.
 
 ## Task Requirements
 
