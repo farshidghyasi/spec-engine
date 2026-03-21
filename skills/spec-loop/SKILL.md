@@ -66,6 +66,25 @@ If `--yolo` is specified, the loop runs fully autonomously with NO human pauses:
 
 In yolo mode, the ONLY thing that stops execution is `--max-iterations` or all tasks completing. Do NOT use AskUserQuestion at any point during yolo execution.
 
+## Rationalization Prevention
+
+Every step below is mandatory. You WILL be tempted to skip steps that seem unnecessary for "simple" waves. This table exists because every rationalization below has caused real production failures.
+
+| You will think... | Reality |
+|---|---|
+| "Only 2 tasks in this wave, no import manifest needed" | 2 parallel tasks caused 5 field-name mismatches in a real project. Even 2 tasks can disagree on naming. |
+| "These tasks don't share imports, skip cross-agent resolution" | You cannot know this without scanning. Agents import from previous waves, not just each other. |
+| "The agent probably committed its work" | Agents routinely do not commit. Every wave in a real run required manual commits. Always auto-commit. |
+| "This agent wouldn't modify shared files" | Agents modify app.ts, index.ts, and router files constantly. Always check, always revert. |
+| "Quality gates passed, so the wave works" | 39/39 tasks passed quality gates. 3 critical bugs made the auth flow non-functional. Gates test code correctness, not integration. |
+| "The agent said wired: yes, trust it" | 12 routes were marked wired: yes but weren't mounted in app.ts. Always verify with grep. |
+| "Post-merge commands failed but it's probably fine" | A failed `pnpm install` means missing deps. A failed build means broken types. Never continue past a failed post-merge command. |
+| "Pre-existing test failures, just ignore gate output" | Without baseline comparison, you cannot distinguish new failures from old ones. Always use diff mode. |
+| "Integration test isn't configured, skip it" | Log a warning that no integration_cmd is set. Do not silently skip — the user needs to know this safety net is missing. |
+| "This wave is sequential, skip the post-agent checks" | Shared file enforcement and wired verification apply to ALL execution modes, not just parallel. |
+
+**The cost of running every check is minutes. The cost of skipping one is hours of manual debugging.**
+
 ## Execution Loop
 
 ### Step 1: Initialize

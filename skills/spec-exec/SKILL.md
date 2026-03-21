@@ -21,6 +21,20 @@ Execute a single iteration of spec-driven implementation with quality gates, par
 /spec-exec [spec-name] [--no-parallel]
 ```
 
+## Rationalization Prevention
+
+Every step below is mandatory. You WILL be tempted to skip steps that seem unnecessary. This table exists because every rationalization below has caused real failures.
+
+| You will think... | Reality |
+|---|---|
+| "Only 1 parallel group, skip import manifest" | Even sequential tasks need the manifest — they import from previous waves. |
+| "The agent committed its work" | Agents routinely do not commit. Always auto-commit after agent completes. |
+| "This agent wouldn't touch shared files" | Always check. Agents modify routers, entry points, and config files unprompted. |
+| "Quality gates passed, task is done" | Gates test syntax, not integration. Always run integration test if configured. |
+| "Agent said wired: yes" | Verify with grep. Self-reported wired status is wrong ~30% of the time. |
+| "Post-merge build failed but it's unrelated" | It's never unrelated. A failed build means the merge broke something. Stop and fix. |
+| "Pre-existing errors, ignore gate output" | Use diff mode. Compare against baseline. You cannot distinguish new from old without it. |
+
 ## Workflow
 
 ### Step 1: Load State
