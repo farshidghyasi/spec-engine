@@ -5,14 +5,14 @@
   },
   "metadata": {
     "description": "Spec-driven development: structured requirements (EARS), architecture design, wave-based parallel execution, quality gates, and full SDLC lifecycle",
-    "version": "1.3.0"
+    "version": "1.4.0"
   },
   "plugins": [
     {
       "name": "spec-engine",
       "source": "./",
       "description": "Spec-driven development engine with EARS notation, model-routed agents, wave-based parallel execution, and quality gates",
-      "version": "1.3.0"
+      "version": "1.4.0"
     }
   ]
 }
