@@ -32,10 +32,13 @@ Each task MUST have:
 - **Status**: Always `pending` for new tasks
 - **Wave**: Computed by topological sort of dependency DAG (see below)
 - **Wired**: Always `pending` for new tasks (set to `yes` or `n/a` by implementer)
+- **Wire into**: The file path where this task's output must be imported/registered. Required for all tasks that create components, routes, services, or middleware. Set to `n/a` for setup/config/infra tasks that don't produce importable exports.
+  - Examples: `Wire into: src/app.tsx (router)`, `Wire into: src/routes/index.ts`, `Wire into: src/store/index.ts`
+  - This prevents orphaned files — agents create components but forget to import them. By declaring the wiring target upfront, the implementer knows exactly where to add the import, and spec-loop can verify it.
 - **Dependencies**: Explicit task IDs. Only declare truly necessary dependencies.
 - **Covers**: Which US-X / AC this task implements
-- **Files**: List of files this task will create or modify (see File Ownership below)
-- **Description**: Clear, actionable implementation instructions
+- **Files**: List of files this task will create or modify (see File Ownership below). **Must include the "Wire into" target file** so that the implementer owns the wiring change.
+- **Description**: Clear, actionable implementation instructions. **Must include explicit wiring instruction**: "Import <export> in <wire-into-file> and register/render it."
 - **Acceptance Criteria**: At least 2 criteria per task:
   1. One happy-path criterion
   2. One error-path criterion (REQUIRED — what happens when things fail?)
@@ -116,6 +119,25 @@ If design.md defines shared interfaces/types used by multiple components:
 - Create a **Wave 0 task** that produces the shared type/interface files
 - All subsequent tasks that consume these types depend on this Wave 0 task
 - This prevents parallel agents from disagreeing on type shapes
+
+## Separation of Concerns: Build vs. Extract
+
+**Never combine "make it work" and "make it clean" in the same task.** When a task creates a complex component (e.g., a full screen with multiple sections), agents will inline everything into a single file to avoid the complexity of extraction mid-task.
+
+### Rule: Add explicit extraction tasks in later waves
+
+For any task that is expected to produce a complex component (3+ logical sections, or likely >300 lines):
+
+1. **Wave N**: Create the implementation task — "Build <Screen/Component> with full functionality." The agent is allowed to inline sub-components.
+2. **Wave N+1 or later**: Create an extraction task — "Extract sub-components from <file>." This task:
+   - Depends on the implementation task
+   - Lists the oversized file AND the new sub-component files in its Files array
+   - Has acceptance criteria like: "No file exceeds 500 lines" and "Each extracted component is imported by the parent"
+
+This separation produces better results because:
+- Implementation agents focus on correctness without the cognitive overhead of also planning file boundaries
+- Extraction agents have the full working code to analyze for natural component boundaries
+- spec-loop's file size guard (500-line limit) will auto-generate extraction tasks if you miss one, but it's better to plan them upfront
 
 ## Task Sizing
 

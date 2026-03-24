@@ -22,8 +22,22 @@ Run user acceptance testing to formally verify the implementation satisfies all 
 ## Workflow
 
 1. Locate spec directory, validate spec name
-2. Delegate to spec-acceptor agent with:
+2. **Pre-acceptance wiring audit** (run BEFORE delegating to acceptor — this catches the #1 failure mode):
+
+   For every task in state.json with `wired: "yes"`:
+   a. Read the task's primary output file, extract its main export name
+   b. Grep the codebase for imports of that export (excluding the defining file itself):
+      ```bash
+      grep -r "import.*ExportName" --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" src/ | grep -v "<defining_file>"
+      ```
+   c. If **zero imports found**: Flag in a wiring report. "File exists" ≠ "file is used."
+   d. Include the wiring report in the acceptor's input so it can factor this into its assessment.
+
+   This audit exists because the first acceptance pass in a real run missed 5 unwired components that existed as files but had zero imports.
+
+3. Delegate to spec-acceptor agent with:
    - requirements.md, design.md, tasks.md, state.json
    - Evidence from `evidence/` directory (screenshots, test results, review reports)
-3. Present the acceptance report to the user
-4. Ask via AskUserQuestion: "Accept this implementation?" / "Request changes"
+   - **Wiring audit results from step 2** (list of verified vs unverified imports)
+4. Present the acceptance report to the user
+5. Ask via AskUserQuestion: "Accept this implementation?" / "Request changes"
