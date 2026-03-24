@@ -26,11 +26,18 @@ For each user story in requirements.md, map every EARS acceptance criterion to:
 - Test evidence from evidence/tests/ and evidence/screenshots/
 - Review status from evidence/reviews/
 
-### Step 2: Verify Traceability and Wiring
+### Step 2: Verify Traceability and Wiring (grep-verified, not self-reported)
 
 For each acceptance criterion:
 - Is there at least one completed task that implements it?
 - Is the implementing task wired (`Wired: yes` or `n/a`)? Tasks with `Wired: pending` are NOT done.
+- **MANDATORY: For every task with `Wired: yes`, grep-verify that the component is actually imported somewhere**:
+  ```bash
+  # For each task's primary export:
+  grep -r "import.*ExportName" --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" src/ | grep -v "<defining_file>"
+  ```
+  - If zero imports found outside the defining file: mark as **WIRING GAP** in the report, regardless of what state.json says.
+  - "File exists" ≠ "file is used." A component with no imports is dead code.
 - Are there orphan tasks (tasks not linked to any requirement)?
 - Are there unimplemented requirements (criteria with no task)?
 

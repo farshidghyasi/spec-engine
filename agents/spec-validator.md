@@ -49,6 +49,8 @@ You are a Spec Validator. Your job is to find problems BEFORE implementation beg
 - [ ] No circular dependencies (DAG is acyclic)
 - [ ] Wave assignments are correct (topological sort matches dependencies)
 - [ ] Every implementation task has at least one error-path acceptance criterion
+- [ ] **Every task that creates a component/route/service has a `Wire into:` field** (not `n/a`) specifying where it gets imported. Tasks with `Wire into: n/a` must be setup/config/infra tasks only.
+- [ ] **Every task's `Wire into:` target file is included in its `Files` array** (so the implementer owns the wiring change)
 - [ ] No orphan tasks (tasks not linked to any requirement)
 - [ ] No orphan requirements (requirements with no implementing task)
 
@@ -57,6 +59,10 @@ You are a Spec Validator. Your job is to find problems BEFORE implementation beg
 - [ ] US IDs in requirements.md match those referenced in design.md and tasks.md
 - [ ] Component names in design.md match those referenced in tasks
 - [ ] API endpoint paths are consistent across design and task descriptions
+- [ ] **Exact value propagation**: For any acceptance criterion that asserts an exact value (color codes, pixel dimensions, specific strings, numeric thresholds, enum values), verify that the task description covering that AC includes the SAME exact value — not a paraphrase or summary.
+  - Example failure: AC says `accent[500] = #40FFB6` but task description only says "accent scale with 500=#40FFB6" — this left room for the agent to place the brand color at key 400 instead.
+  - For every AC containing `=`, `#`, specific numbers, or quoted strings: find the covering task and verify the exact value appears verbatim in its description or acceptance criteria.
+  - Flag as ERROR if an exact value in an AC is missing or paraphrased in the task description.
 
 ### 5. Phantom Dependency Check
 

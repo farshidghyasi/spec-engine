@@ -82,6 +82,10 @@ Every step below is mandatory. You WILL be tempted to skip steps that seem unnec
 | "Pre-existing test failures, just ignore gate output" | Without baseline comparison, you cannot distinguish new failures from old ones. Always use diff mode. |
 | "Integration test isn't configured, skip it" | Log a warning that no integration_cmd is set. Do not silently skip — the user needs to know this safety net is missing. |
 | "This wave is sequential, skip the post-agent checks" | Shared file enforcement and wired verification apply to ALL execution modes, not just parallel. |
+| "The audit log can wait, I'll write it at the end" | A real run produced 41 completed tasks with an empty audit log. Write entries as you go, not at the end. |
+| "The agent said the file exists, I trust it" | 34 files were marked completed without existing on disk. Always stat. Never trust self-reports. |
+| "Evidence isn't needed, gates passed" | Without evidence files, spec-accept has nothing to verify. Always persist gate output. |
+| "The file is big but it works" | 1700-line screen files deviated completely from the design. Always check file size, auto-create extraction tasks. |
 
 **The cost of running every check is minutes. The cost of skipping one is hours of manual debugging.**
 
@@ -105,7 +109,8 @@ For each wave (starting from `state.json.execution.current_wave`):
 
 #### 2a: Collect Pending Tasks
 1. Record the current git SHA as `pre_wave_sha` (for wave rollback if needed)
-2. Read state.json.waves[current_wave].tasks. Filter to tasks with status "pending".
+2. **Append audit log entry**: `{ "event": "wave_started", "wave": N, "timestamp": "<ISO-8601>", "details": "Starting wave N with X pending tasks" }`
+3. Read state.json.waves[current_wave].tasks. Filter to tasks with status "pending".
 
 #### 2b: Pre-Parallel Setup
 
@@ -217,9 +222,70 @@ For each parallel group:
    - On failure: spawn spec-debugger (max 2 retries)
    - On persistent failure: task rollback, increment failures in state.json
 
-8. **Update state.json**: mark completed tasks, record tokens, append audit log
+8. **MANDATORY: File existence verification** (for each completed task in the batch):
 
-9. **Commit** with descriptive message listing all task IDs in the batch
+   ```bash
+   # For every file in the task's Files array:
+   for file in <task.files>; do
+     if [ ! -f "$file" ]; then
+       echo "MISSING: $file declared by T-$ID"
+       # Mark task as FAILED, not completed
+     fi
+   done
+   ```
+
+   - If ANY declared file is missing, set the task status to `"failed"` in state.json, increment its failure count, and log: `"T-X failed: missing declared file(s): [list]"`
+   - Do NOT mark a task as completed based on the agent's self-report. Verify on disk.
+   - This check is non-negotiable. An agent saying "done" is not evidence that files exist.
+
+9. **MANDATORY: Max file size check** (for each file modified by tasks in the batch):
+
+   ```bash
+   for file in <batch_modified_files>; do
+     lines=$(wc -l < "$file")
+     if [ "$lines" -gt 500 ]; then
+       echo "OVERSIZED: $file has $lines lines (limit: 500)"
+     fi
+   done
+   ```
+
+   - If any file exceeds 500 lines, log a warning in the audit log: `"WARNING: T-X produced oversized file <path> ($lines lines). Extraction task recommended."`
+   - Add a new pending task in the next wave: `"Extract sub-components from <path>"` with the oversized file in its Files array.
+   - Do NOT fail the task for this — it's a warning that auto-generates a follow-up extraction task.
+
+10. **MANDATORY: Audit log append** — After EVERY task completion, failure, or skip, append to `state.json.audit_log`:
+
+   ```json
+   {
+     "timestamp": "<ISO-8601>",
+     "event": "task_completed|task_failed|task_skipped|wave_started|wave_completed|gate_passed|gate_failed",
+     "task_id": "T-X",
+     "wave": N,
+     "details": "<what happened>"
+   }
+   ```
+
+   - This is not optional. An empty audit log is a bug.
+   - Append an entry for: task start, task completion, task failure, task skip, wave start, wave completion, quality gate pass, quality gate fail, budget warning, human checkpoint, wired downgrade, file size warning.
+   - Use `Edit` tool to append to the audit_log array in state.json after each event.
+
+11. **MANDATORY: Evidence persistence** — After quality gates run, persist their output:
+
+   ```bash
+   mkdir -p <spec_dir>/evidence/tests
+   # After each gate, capture output:
+   <lint_cmd> > <spec_dir>/evidence/tests/wave-${WAVE}-lint.txt 2>&1 || true
+   <typecheck_cmd> > <spec_dir>/evidence/tests/wave-${WAVE}-typecheck.txt 2>&1 || true
+   <test_cmd> > <spec_dir>/evidence/tests/wave-${WAVE}-tests.txt 2>&1 || true
+   ```
+
+   - Gate output MUST be written to evidence/tests/ — do not discard it.
+   - If gates were already run and output was not captured, re-run them with output redirection.
+   - The spec-acceptor needs this evidence. Without it, acceptance testing is blind.
+
+12. **Update state.json**: mark completed tasks (only those that passed file existence check), record tokens
+
+13. **Commit** with descriptive message listing all task IDs in the batch
 
 #### 2e: Post-Wave Checks
 
@@ -232,13 +298,29 @@ After ALL parallel groups and sequential sub-batches in a wave complete:
    - **On failure**: Roll back the ENTIRE wave (`git reset --hard <pre-wave-SHA>`), log the failure, and re-run the wave's tasks SEQUENTIALLY instead of in parallel. This catches incompatibilities that parallel execution introduced.
    - **On success**: Continue to next checks.
 
-2. **Wired status verification**: For each task in the wave marked `wired: "yes"` in state.json, verify the claim:
-   - **For API routes**: Grep the app entry point (e.g., `app.ts`, `server.ts`, `index.ts`) for an import of the route's export
-   - **For React components**: Grep the router config for the component's import
-   - **For services/utilities**: Grep for at least one call site outside the defining file
-   - **For middleware**: Grep for `.use()` or equivalent registration
-   - If the import/usage is NOT found, downgrade `wired` to `"pending"` in state.json and log: "T-X claims wired but no import found in entry point. Downgraded to pending."
-   - Tasks downgraded to pending will be picked up in the integration phase or next iteration.
+2. **MANDATORY: Grep-based wired verification** — This is the #1 failure mode in spec-engine. Agents routinely mark `wired: "yes"` on components that have zero imports. You MUST run these grep checks. Do NOT trust self-reported wired status.
+
+   For EACH task in the wave marked `wired: "yes"` in state.json:
+
+   a. **Identify the task's primary export**: Read the task's main output file and extract the exported name (function, component, class, constant).
+
+   b. **Grep the entire codebase for imports of that export**:
+   ```bash
+   # Search for any import of the component/function
+   grep -r "import.*ComponentName" --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" src/ | grep -v "node_modules" | grep -v "<the_defining_file_itself>"
+   ```
+
+   c. **Evaluate results**:
+   - If **zero imports found outside the defining file**: Downgrade `wired` to `"pending"` in state.json. Append to audit log: `"WIRED DOWNGRADE: T-X export '<name>' has 0 imports in codebase. Downgraded from yes to pending."`
+   - If imports found: Keep `wired: "yes"`. Log the verification: `"WIRED VERIFIED: T-X export '<name>' imported by [file list]"`
+
+   d. **Specific patterns to check**:
+   - **API routes**: `grep -r "import.*routeName\|require.*routeName" src/` AND check the app entry point for `.use()` or route registration
+   - **React components**: `grep -r "import.*ComponentName\|<ComponentName" src/` AND check router/navigation config
+   - **Services/utilities**: `grep -r "import.*serviceName" src/` — must have at least one call site outside the defining file
+   - **Middleware**: `grep -r "\.use(.*middlewareName\|import.*middlewareName" src/`
+
+   e. **This check is blocking**: A task with `wired: "pending"` is NOT complete. The completion check in step 2e.6 rejects it. Do not advance to the next wave if wired-pending tasks exist that should be wired.
 
 3. **Stuck detection**: If any task has `failures >= 3`:
    - **If `--yolo`**: Log "AUTO-SKIP: T-X after 3 failures" to state.json audit log, mark task as "skipped", continue to next task
