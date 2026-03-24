@@ -123,6 +123,8 @@ typecheck_cmd="npx tsc --noEmit"
 test_cmd="npm test"
 ```
 
+Gates run in **diff mode** when pre-existing errors exist — comparing error counts against a baseline to fail only on NEW errors. All gate output is persisted to `evidence/tests/wave-N-{lint,typecheck,tests}.txt` so acceptance testing has evidence to verify against.
+
 Failure triggers a tiered recovery: Debugger retry (2x) -> Task rollback -> Wave rollback -> Human escalation.
 
 ### Wiring Tracking
@@ -134,6 +136,10 @@ Every task tracks a `Wired` field alongside its status:
 - **n/a** — Infrastructure task with nothing to wire
 
 This prevents the most common failure mode in AI-driven development: code that exists but isn't connected. The implementer must set it, the tester refuses to test without it, the reviewer rejects if pending, and the acceptor reports integration health. A task is not complete until `Status: completed` AND `Wired: yes` (or `n/a`).
+
+**Wire into field**: Every component creation task declares a `Wire into:` field specifying the exact file where it must be imported (e.g., `Wire into: src/app.tsx (router)`). This target file is included in the task's `Files` array so the implementer owns the wiring change.
+
+**Grep-based verification**: Wired status is never trusted from agent self-reports. After each wave, spec-loop greps the entire codebase for actual imports of each component's exports. Components with zero imports are downgraded to `wired: "pending"` regardless of what the agent claimed. spec-accept runs an independent wiring audit before acceptance testing.
 
 ### Parallel Execution Safety
 
@@ -159,6 +165,8 @@ Running multiple AI agents in parallel introduces subtle failure modes. spec-eng
 
 **No Formatters in Worktrees**: Code formatters run ONCE after all parallel merges are complete, not in individual worktrees. This prevents cosmetic changes from creating merge conflicts.
 
+**Build vs. Extract Separation**: Complex components are split into implementation tasks ("make it work") and extraction tasks ("make it clean") in later waves. This prevents agents from inlining everything into monolithic files. A 500-line file size guard auto-creates extraction tasks if the tasker misses one.
+
 ### Agent Teams (`/spec-team`)
 
 Four specialized agents with separation of concerns:
@@ -172,6 +180,15 @@ Four specialized agents with separation of concerns:
 
 Agents communicate via lightweight handoff files (~200 tokens each) instead of full context duplication, reducing token usage by ~85%.
 
+### Post-Task Verification
+
+After every task completes, spec-loop runs mandatory verification that cannot be skipped:
+
+1. **File existence check** — stats every file in the task's `Files` array. Missing files mark the task as failed. Agent self-reports are never trusted.
+2. **Max file size guard** — files exceeding 500 lines trigger auto-creation of extraction tasks in the next wave, preventing monolithic components.
+3. **Audit log append** — every task start, completion, failure, wave transition, and gate result is logged. An empty audit log is treated as a bug.
+4. **Evidence persistence** — gate output is written to `evidence/tests/` for downstream acceptance testing.
+
 ### State Management
 
 `state.json` is the execution brain — a machine-readable file (~200 tokens) that tracks:
@@ -181,7 +198,7 @@ Agents communicate via lightweight handoff files (~200 tokens each) instead of f
 - Quality gate results
 - Integrity manifest (SHA256 of spec files)
 - Reproducibility data (model versions, git SHA)
-- Audit log
+- Audit log (mandatory — written at every transition, not batched)
 
 Execution can be interrupted and resumed across sessions with zero re-orientation cost.
 
@@ -192,7 +209,7 @@ Execution can be interrupted and resumed across sessions with zero re-orientatio
 - **Secret-aware staging** — sensitive files detected and excluded from commits
 - **Input validation** — strict regex on spec names, URL validation
 - **Read-only reviewer** — the Opus reviewer cannot modify code, only read and report
-- **Audit logging** — all execution events are logged
+- **Audit logging** — all execution events are logged (enforced at every transition, not optional)
 
 ### Feedback Loop
 
@@ -296,9 +313,9 @@ The direct predecessor is [spec-driven-plugin](https://github.com/habib0x0/spec-
 | **Task batching** | One task per iteration (`"Pick ONE task"`) | Wave-based DAG batching — 2-3 independent tasks per iteration, reducing total iterations 3-5x |
 | **State tracking** | `progress.md` — append-only markdown log (~4000+ tokens), parsed with awk | `state.json` — machine-readable (~200 tokens), structurally parsed, resumable across sessions |
 | **Completion detection** | `grep '<promise>COMPLETE</promise>'` in stdout | Structural check: all tasks in state.json have `status: completed` and `wired: yes\|n/a` |
-| **Quality gates** | None — relies on Claude to self-test | Automated lint + type check + regression test + secret scan after every iteration |
+| **Quality gates** | None — relies on Claude to self-test | Automated lint + type check + regression test + secret scan after every iteration, with evidence persistence and file existence verification |
 | **Agent context (team mode)** | Full spec dumped into every agent's prompt (~6000 tokens each) | Handoff files (~200 tokens each) — ~85% token reduction |
-| **Wiring enforcement** | `Wired: yes/no` field, manually checked by tester | `Wired` field enforced by every agent in the pipeline — tester refuses to test, reviewer rejects, acceptor reports health |
+| **Wiring enforcement** | `Wired: yes/no` field, manually checked by tester | `Wire into:` target declared per task, grep-verified after each wave (not self-reported), acceptor runs independent wiring audit |
 | **Human checkpoints** | None after the requirements phase | Mandatory design gate + periodic task checkpoints + budget cap + stuck detection |
 | **Feedback loop** | None — each spec starts from scratch | `lessons.json` written by `/spec-retro`, read by `/spec` and `/spec-brainstorm` |
 | **Error recovery** | Checkpoint commits + rollback | 4-tier: debugger retry (2x) -> task rollback -> wave rollback -> human escalation |
@@ -322,7 +339,7 @@ The spec-driven-plugin proved that structured spec workflows dramatically improv
 3. **No quality enforcement** — without automated gates, tasks get marked "complete" without real verification
 4. **Linear execution** — one task per iteration means a 15-task spec takes 15+ iterations even when tasks are independent
 
-spec-engine addresses all four by leveraging Claude Code's native Agent tool, per-agent tool restrictions, automated quality gates, and wave-based batching.
+spec-engine addresses all four by leveraging Claude Code's native Agent tool, per-agent tool restrictions, automated quality gates, and wave-based batching. Critically, every verification step is **enforced** with concrete checks (file stat, grep for imports, audit log writes) — not just documented as instructions for agents to follow.
 
 ## Contributors
 
