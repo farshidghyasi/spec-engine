@@ -9,7 +9,6 @@ allowed-tools:
   - Grep
   - Bash
   - Agent
-  - AskUserQuestion
 ---
 
 # /spec-team Command
@@ -187,7 +186,7 @@ the grep verification below and confirmed non-zero imports. An agent saying
 
 If Debugger fails twice on the same issue:
 - Mark task as failed in state.json (increment failures count)
-- If failures >= 3: pause for human input
+- If failures >= 3: log "AUTO-SKIP: T-X after 3 failures" to audit log, mark task as "skipped", continue to next task. Do NOT ask the user.
 - Otherwise: move to next task, come back later
 
 ## Completion

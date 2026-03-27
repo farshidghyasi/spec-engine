@@ -123,6 +123,8 @@ Shell scripts in `scripts/` for headless execution:
 - `spec-loop.sh [--spec-name <name>] [--max-iterations N] [--no-worktree]` - Full loop
 - `spec-team.sh [--spec-name <name>] [--max-iterations N] [--no-worktree]` - Team execution
 
+All execution scripts run autonomously by default (no human interaction). Use `--no-skip-permissions` to re-enable Claude Code permission prompts if needed.
+
 Features:
 - **Auto-detect**: If only one spec exists, `--spec-name` is optional
 - **Worktree isolation**: Runs in a `spec/<name>` branch via git worktree (disable with `--no-worktree`)
