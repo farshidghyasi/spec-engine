@@ -139,7 +139,7 @@ This prevents the most common failure mode in AI-driven development: code that e
 
 **Wire into field**: Every component creation task declares a `Wire into:` field specifying the exact file where it must be imported (e.g., `Wire into: src/app.tsx (router)`). This target file is included in the task's `Files` array so the implementer owns the wiring change.
 
-**Grep-based verification**: Wired status is never trusted from agent self-reports. After each wave, spec-loop greps the entire codebase for actual imports of each component's exports. Components with zero imports are downgraded to `wired: "pending"` regardless of what the agent claimed. spec-accept runs an independent wiring audit before acceptance testing.
+**Grep-based verification**: Wired status is never trusted from agent self-reports. After each wave, spec-loop greps the entire codebase for actual imports of each component's exports. Components with zero imports are downgraded to `wired: "pending"` regardless of what the agent claimed. spec-accept runs an independent wiring audit before acceptance testing. This verification is enforced with a `<HARD-GATE>` block that prevents any task from being marked complete without grep evidence — matching the enforcement patterns used in superpowers skills.
 
 ### Parallel Execution Safety
 
@@ -150,6 +150,8 @@ Running multiple AI agents in parallel introduces subtle failure modes. spec-eng
 **Shared Files Registry**: Files that inherently need modification by multiple tasks (barrel/index files, `package.json`, lock files, config files, routers, test setup files, Dockerfiles) are classified as "shared" and excluded from parallel execution. They are modified in a sequential reconciliation step after parallel agents complete.
 
 **Add-Only Rule**: Parallel agents may only ADD new code — they cannot refactor existing function signatures, rename variables, or restructure existing modules. This prevents the case where one agent changes an interface that another agent depends on.
+
+**Signature Change Propagation**: When a task modifies an existing function's signature (parameters, return type, sync to async), the tasker includes a grep instruction and lists all known caller files. The implementer must grep for ALL callers before implementing — not just the ones listed — and flag any boundary violations via `SIGNATURE BREAK` handoff notes for sequential follow-up.
 
 **Contract-First Design**: Shared types and interfaces are produced in Wave 0 before any parallel execution begins. All subsequent tasks import from these contracts, preventing type disagreements between parallel agents.
 
@@ -182,12 +184,13 @@ Agents communicate via lightweight handoff files (~200 tokens each) instead of f
 
 ### Post-Task Verification
 
-After every task completes, spec-loop runs mandatory verification that cannot be skipped:
+After every task completes, spec-loop runs mandatory verification enforced with `<HARD-GATE>` blocks and red flags lists (superpowers-style enforcement patterns that prevent agent rationalization):
 
-1. **File existence check** — stats every file in the task's `Files` array. Missing files mark the task as failed. Agent self-reports are never trusted.
-2. **Max file size guard** — files exceeding 500 lines trigger auto-creation of extraction tasks in the next wave, preventing monolithic components.
-3. **Audit log append** — every task start, completion, failure, wave transition, and gate result is logged. An empty audit log is treated as a bug.
-4. **Evidence persistence** — gate output is written to `evidence/tests/` for downstream acceptance testing.
+1. **Auto-commit** — the FIRST post-agent action, before any other check. Enforced with a `<HARD-GATE>` because agents routinely skip commits.
+2. **File existence check** — stats every file in the task's `Files` array. Missing files mark the task as failed. Agent self-reports are never trusted.
+3. **Max file size guard** — files exceeding 500 lines trigger auto-creation of extraction tasks in the next wave, preventing monolithic components.
+4. **Audit log append** — every task start, completion, failure, wave transition, and gate result is logged. An empty audit log is treated as a bug.
+5. **Evidence persistence** — gate output is written to `evidence/tests/` for downstream acceptance testing.
 
 ### State Management
 
@@ -339,7 +342,7 @@ The spec-driven-plugin proved that structured spec workflows dramatically improv
 3. **No quality enforcement** — without automated gates, tasks get marked "complete" without real verification
 4. **Linear execution** — one task per iteration means a 15-task spec takes 15+ iterations even when tasks are independent
 
-spec-engine addresses all four by leveraging Claude Code's native Agent tool, per-agent tool restrictions, automated quality gates, and wave-based batching. Critically, every verification step is **enforced** with concrete checks (file stat, grep for imports, audit log writes) — not just documented as instructions for agents to follow.
+spec-engine addresses all four by leveraging Claude Code's native Agent tool, per-agent tool restrictions, automated quality gates, and wave-based batching. Critically, every verification step is **enforced** with `<HARD-GATE>` blocks, rationalization prevention tables, and red flags lists — the same enforcement patterns used in superpowers skills. Agents cannot skip auto-commit, wiring verification, or file existence checks because the enforcement is structural (grep evidence required), not instructional (hoping agents follow directions).
 
 ## Contributors
 
