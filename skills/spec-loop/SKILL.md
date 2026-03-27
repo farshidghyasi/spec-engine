@@ -310,6 +310,12 @@ After ALL parallel groups and sequential sub-batches in a wave complete:
    - **On failure**: Roll back the ENTIRE wave (`git reset --hard <pre-wave-SHA>`), log the failure, and re-run the wave's tasks SEQUENTIALLY instead of in parallel. This catches incompatibilities that parallel execution introduced.
    - **On success**: Continue to next checks.
 
+<HARD-GATE>
+Do NOT mark any task as completed or advance to the next wave until you have run
+the grep verification below and confirmed non-zero imports. An agent saying
+"wired: yes" is not evidence. Grep output is evidence.
+</HARD-GATE>
+
 2. **MANDATORY: Grep-based wired verification** — This is the #1 failure mode in spec-engine. Agents routinely mark `wired: "yes"` on components that have zero imports. You MUST run these grep checks. Do NOT trust self-reported wired status.
 
    For EACH task in the wave marked `wired: "yes"` in state.json:
@@ -333,6 +339,14 @@ After ALL parallel groups and sequential sub-batches in a wave complete:
    - **Middleware**: `grep -r "\.use(.*middlewareName\|import.*middlewareName" src/`
 
    e. **This check is blocking**: A task with `wired: "pending"` is NOT complete. The completion check in step 2e.6 rejects it. Do not advance to the next wave if wired-pending tasks exist that should be wired.
+
+   **Wiring Verification Red Flags** — if you catch yourself thinking any of these, STOP:
+
+   - "The agent said wired: yes" — Run the grep. Agent self-reports are wrong ~30% of the time.
+   - "I already checked this in a previous wave" — Check again. Code changes between waves.
+   - "It's an internal utility, nothing imports it" — Then it's dead code. Set wired: n/a with justification, or find the call site.
+   - "The tests pass so it must be wired" — Tests run in isolation. Wired means reachable from the app entry point.
+   - "I'll check wiring at the end" — Check per-wave. Deferring wiring checks is how 12 routes got marked wired:yes without being mounted.
 
 3. **Stuck detection**: If any task has `failures >= 3`:
    - **If `--yolo`**: Log "AUTO-SKIP: T-X after 3 failures" to state.json audit log, mark task as "skipped", continue to next task. **Do NOT call AskUserQuestion.**
