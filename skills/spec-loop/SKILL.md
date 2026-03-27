@@ -9,17 +9,16 @@ allowed-tools:
   - Grep
   - Bash
   - Agent
-  - AskUserQuestion
 ---
 
 # /spec-loop Command
 
-Wave-based execution loop. Batches independent tasks, runs them in parallel where safe, runs quality gates, enforces cost controls, and pauses for human checkpoints.
+Wave-based execution loop. Batches independent tasks, runs them in parallel where safe, runs quality gates, enforces cost controls, and auto-handles all decisions.
 
 ## Usage
 
 ```
-/spec-loop [spec-name] [--dry-run] [--max-iterations N] [--no-parallel] [--yolo]
+/spec-loop [spec-name] [--dry-run] [--max-iterations N] [--no-parallel]
 ```
 
 ## Dry-Run Mode
@@ -50,29 +49,26 @@ Iterations: ~4 (wave-based batching)
 Budget cap: 500,000 tokens
 Human checkpoint: every 5 tasks
 
-Proceed? [Yes / Adjust budget / Cancel]
 ```
 
-Do NOT execute anything in dry-run mode.
+Do NOT execute anything in dry-run mode. Present the plan and stop.
 
-## YOLO Mode
+## Autonomous Execution
 
-**⚠️ YOLO = ZERO human interaction. If you are about to call AskUserQuestion and `--yolo` was specified, STOP. You are violating YOLO mode. Make the best decision yourself and continue.**
+**⚠️ spec-loop NEVER asks the user questions. NEVER call AskUserQuestion. All decisions are made autonomously.**
 
-If `--yolo` is specified, the loop runs fully autonomously with NO human pauses:
+The loop runs fully autonomously with NO human pauses:
 
-- **AskUserQuestion**: NEVER call this tool. Not once. Not for any reason. Make the best decision yourself and log it.
+- **No questions**: NEVER call AskUserQuestion. Not once. Not for any reason. Make the best decision yourself and log it.
 - **Stuck detection**: Automatically skip the task after 3 failures and continue. Log the skip in state.json audit log.
-- **Human checkpoints**: Disabled entirely. Do NOT pause for progress checks.
-- **Budget cap**: Disabled. Continue until all tasks complete or max iterations hit. Log a warning when exceeded.
+- **No human checkpoints**: Do NOT pause for progress checks. Execute continuously.
+- **Budget cap**: Log a warning when exceeded but continue. The ONLY thing that stops execution is `--max-iterations` or all tasks completing.
 - **Integrity mismatch**: Log a warning but proceed without prompting.
 - **Error escalation**: Do NOT escalate to user. Auto-skip or auto-fix. Log the decision.
 - **Merge conflicts**: Resolve automatically or fall back to sequential. Do NOT ask for help.
 - **Ambiguous decisions**: Pick the most reasonable option, log your reasoning in the audit log, continue.
 
-In yolo mode, the ONLY thing that stops execution is `--max-iterations` or all tasks completing.
-
-**YOLO self-test**: Before every tool call, check: "Am I about to call AskUserQuestion?" If yes, replace it with an autonomous decision + audit log entry.
+**Self-test**: Before every tool call, check: "Am I about to call AskUserQuestion?" If yes, STOP — replace it with an autonomous decision + audit log entry.
 
 ## Rationalization Prevention
 
@@ -94,8 +90,8 @@ Every step below is mandatory. You WILL be tempted to skip steps that seem unnec
 | "The agent said the file exists, I trust it" | 34 files were marked completed without existing on disk. Always stat. Never trust self-reports. |
 | "Evidence isn't needed, gates passed" | Without evidence files, spec-accept has nothing to verify. Always persist gate output. |
 | "The file is big but it works" | 1700-line screen files deviated completely from the design. Always check file size, auto-create extraction tasks. |
-| "I should ask the user about this edge case" | In YOLO mode, you NEVER ask. Make the best call, log it, move on. The user left specifically to NOT be asked. |
-| "This error is unusual, better check with the user" | In YOLO mode, auto-fix or auto-skip. Log everything. The user will review the audit log later. |
+| "I should ask the user about this edge case" | You NEVER ask. Make the best call, log it, move on. The user is not here to answer. |
+| "This error is unusual, better check with the user" | Auto-fix or auto-skip. Log everything. The user will review the audit log later. |
 
 **The cost of running every check is minutes. The cost of skipping one is hours of manual debugging.**
 
@@ -105,8 +101,8 @@ Every step below is mandatory. You WILL be tempted to skip steps that seem unnec
 
 1. Locate spec directory, validate spec name
 2. Read state.json
-3. **Verify integrity manifest** — if spec files changed since last validation, prompt user **(YOLO: log warning, proceed without prompting)**
-4. **Check budget** — if `total_tokens >= budget_cap`, refuse to start **(YOLO: log warning, continue)**
+3. **Verify integrity manifest** — if spec files changed since last validation, log a warning and proceed
+4. **Check budget** — if `total_tokens >= budget_cap`, log a warning and continue
 5. **Check cross-spec dependencies** — verify dependent specs are complete
 6. Record starting git SHA in `state.json.reproducibility.git_sha_start` (if not already set)
 7. If quality gate commands are not yet in state.json, try to detect them:
@@ -115,7 +111,7 @@ Every step below is mandatory. You WILL be tempted to skip steps that seem unnec
 
 ### Step 2: Wave Loop
 
-**YOLO REMINDER: If `--yolo` was specified, you must NEVER call AskUserQuestion during any part of this loop. At every decision point, make the best autonomous choice and log it.**
+**AUTONOMY REMINDER: You must NEVER call AskUserQuestion during any part of this loop. At every decision point, make the best autonomous choice and log it.**
 
 For each wave (starting from `state.json.execution.current_wave`):
 
@@ -362,16 +358,13 @@ the grep verification below and confirmed non-zero imports. An agent saying
    - "I'll check wiring at the end" — Check per-wave. Deferring wiring checks is how 12 routes got marked wired:yes without being mounted.
 
 3. **Stuck detection**: If any task has `failures >= 3`:
-   - **If `--yolo`**: Log "AUTO-SKIP: T-X after 3 failures" to state.json audit log, mark task as "skipped", continue to next task. **Do NOT call AskUserQuestion.**
-   - **Otherwise**: Pause execution, present failure history to user via AskUserQuestion. Options: "Skip this task" / "Retry with different approach" / "Abort"
+   - Log "AUTO-SKIP: T-X after 3 failures" to state.json audit log, mark task as "skipped", continue to next task.
 
-4. **Human checkpoint**: If `tasks_since_checkpoint >= human_checkpoint_interval`:
-   - **If `--yolo`**: Skip checkpoint entirely. **Do NOT call AskUserQuestion.** Reset counter silently.
-   - **Otherwise**: Present progress summary, ask user via AskUserQuestion: "Continue?" / "Pause" / "Abort", reset `tasks_since_checkpoint` to 0
+4. **Progress tracking**: If `tasks_since_checkpoint >= human_checkpoint_interval`:
+   - Log progress summary to audit log. Reset counter. Continue execution without pausing.
 
 5. **Budget check**: If `total_tokens >= budget_cap`:
-   - **If `--yolo`**: Log warning "Budget cap exceeded, continuing in yolo mode" to audit log, continue. **Do NOT call AskUserQuestion.**
-   - **Otherwise**: Pause execution, show cost summary, ask user: "Increase budget" / "Abort"
+   - Log warning "Budget cap exceeded, continuing" to audit log. Continue execution.
 
 6. **Completion check**: Read state.json.tasks. If ALL tasks have status "completed" AND wired is "yes" or "n/a", break out of loop. Tasks with wired="pending" are NOT done.
 
@@ -429,4 +422,4 @@ If the session is interrupted (user exits, timeout, etc.):
    - 3+ tasks in wave fail quality gates
    - Post-merge commands fail after retry
    After rollback, re-run the wave sequentially instead of in parallel.
-4. **Human Escalation**: Pause, present details, await user decision. **(YOLO: skip escalation — auto-skip the task, log "AUTO-ESCALATION-SKIP: T-X" to audit log, continue to next task. Do NOT call AskUserQuestion.)**
+4. **Auto-Escalation**: Auto-skip the task, log "AUTO-ESCALATION-SKIP: T-X" to audit log, continue to next task. Do NOT ask the user.

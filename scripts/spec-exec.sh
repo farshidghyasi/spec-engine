@@ -7,14 +7,15 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SPEC_NAME=""
 USE_WORKTREE=true
-SKIP_PERMISSIONS=false
+SKIP_PERMISSIONS=true
 
 while [[ $# -gt 0 ]]; do
   case $1 in
     --spec-name) SPEC_NAME="$2"; shift 2 ;;
     --no-worktree) USE_WORKTREE=false; shift ;;
-    --yolo) SKIP_PERMISSIONS=true; shift ;;
-    *) echo "Usage: spec-exec.sh [--spec-name <name>] [--no-worktree] [--yolo]"; exit 1 ;;
+    --yolo) shift ;; # backward compat — autonomous is now the default
+    --no-skip-permissions) SKIP_PERMISSIONS=false; shift ;;
+    *) echo "Usage: spec-exec.sh [--spec-name <name>] [--no-worktree] [--no-skip-permissions]"; exit 1 ;;
   esac
 done
 
@@ -70,7 +71,6 @@ create_checkpoint 1 "$WORK_DIR"
 CLAUDE_FLAGS="-p"
 if [[ "$SKIP_PERMISSIONS" == "true" ]]; then
   CLAUDE_FLAGS="--dangerously-skip-permissions -p"
-  echo "WARNING: Running with --dangerously-skip-permissions (--yolo mode)"
 fi
 
 echo "=== Running spec-exec for: $SPEC_NAME ==="

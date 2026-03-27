@@ -8,15 +8,16 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SPEC_NAME=""
 USE_WORKTREE=true
 MAX_ITERATIONS=50
-SKIP_PERMISSIONS=false
+SKIP_PERMISSIONS=true
 
 while [[ $# -gt 0 ]]; do
   case $1 in
     --spec-name) SPEC_NAME="$2"; shift 2 ;;
     --max-iterations) MAX_ITERATIONS="$2"; shift 2 ;;
     --no-worktree) USE_WORKTREE=false; shift ;;
-    --yolo) SKIP_PERMISSIONS=true; shift ;;
-    *) echo "Usage: spec-loop.sh [--spec-name <name>] [--max-iterations N] [--no-worktree] [--yolo]"; exit 1 ;;
+    --yolo) shift ;; # backward compat — autonomous is now the default
+    --no-skip-permissions) SKIP_PERMISSIONS=false; shift ;;
+    *) echo "Usage: spec-loop.sh [--spec-name <name>] [--max-iterations N] [--no-worktree] [--no-skip-permissions]"; exit 1 ;;
   esac
 done
 
@@ -69,7 +70,6 @@ trap "rm -f $OUTPUT_FILE" EXIT
 CLAUDE_FLAGS="-p"
 if [[ "$SKIP_PERMISSIONS" == "true" ]]; then
   CLAUDE_FLAGS="--dangerously-skip-permissions -p"
-  echo "WARNING: Running with --dangerously-skip-permissions (--yolo mode)"
 fi
 
 echo "=== Starting spec-loop for: $SPEC_NAME (max $MAX_ITERATIONS iterations) ==="
