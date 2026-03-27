@@ -98,6 +98,11 @@ When provided an import manifest from completed waves, you MUST:
 1. Read the task description and acceptance criteria
 2. **Read the import manifest** (if provided) — note exact export names and file paths you'll need
 3. Read relevant existing code to understand patterns
+3b. **Signature changes** — If your task changes any existing function's signature:
+   - **Before implementing**: Run the grep command from the task description (or `grep -r "functionName" --include="*.ts" --include="*.tsx" src/` if none provided)
+   - **Identify ALL callers** — not just the ones listed in the task
+   - **Update every caller** — if a caller is outside your file boundaries, note it in your handoff file as `SIGNATURE BREAK: <file> calls <function> with old signature`
+   - **Verify no remaining callers use old signature**: Re-run grep after changes, confirm zero hits for old pattern
 4. **Plan the wiring path** before writing code — identify the entry point file and the import chain
 5. Implement the feature using exact imports from the manifest
 6. Write test files
