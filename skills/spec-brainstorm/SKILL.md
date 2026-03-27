@@ -73,6 +73,7 @@ Topics to explore over multiple rounds:
 - What are we explicitly NOT doing?
 - Are there existing patterns in the codebase we should follow?
 - What are the risks or unknowns?
+- If the feature includes user-facing screens: What interaction pattern should each screen use? (page, modal, dialog, drawer, inline expansion, wizard) This matters most for screens users will hit frequently — getting it wrong means full rework. Ask early: "For [screen X], should this be a full page, a modal overlay, a dialog, or something else? Consider how often users will use it and what context they need to keep visible."
 - Have you considered [alternative approach]?
 
 #### Expert Consultation (if experts were selected)
