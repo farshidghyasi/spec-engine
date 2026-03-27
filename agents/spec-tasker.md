@@ -43,6 +43,17 @@ Each task MUST have:
   1. One happy-path criterion
   2. One error-path criterion (REQUIRED — what happens when things fail?)
 
+## Signature Change Rule
+
+If a task modifies an existing function's signature (adding/removing parameters, changing return type, sync to async, renaming), the task description MUST include:
+
+1. The exact signature change: e.g., `functionName(a) -> functionName(a, b)` or `sync functionName() -> async functionName()`
+2. A grep instruction: `grep -r "functionName" --include="*.ts" --include="*.tsx" src/`
+3. An acceptance criterion: "All callers of functionName updated to new signature"
+4. ALL known caller files added to the task's Files array
+
+If the caller list might be incomplete, add to the description: "Run grep before implementing to discover all callers. Add any unlisted caller files to your scope and update them."
+
 ## Wave Assignment
 
 Compute waves using Kahn's algorithm (BFS topological sort):
