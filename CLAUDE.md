@@ -28,6 +28,7 @@ references/                 - Reference docs for agents
 | `/spec-tasks` | Regenerate tasks from updated spec |
 | `/spec-validate` | Validate completeness (all 5 EARS patterns, traceability) |
 | `/spec-status` | Progress dashboard with cost tracking and wiring health |
+| `/spec-dashboard` | Portfolio view of all specs with verified phase completion |
 | `/spec-exec` | Execute one iteration with quality gates |
 | `/spec-loop` | Wave-based loop with batching, cost controls, human checkpoints |
 | `/spec-team` | 4-agent team execution (Implementer + Tester + Reviewer + Debugger) |
