@@ -186,6 +186,13 @@ For each parallel group:
    - **All parallel agents are launched in a single message** (multiple Agent tool calls)
    - Wait for all agents to complete
 
+<HARD-GATE>
+The FIRST thing you do after ANY agent completes is auto-commit its work.
+Before checking wiring, before running gates, before merging — commit.
+If you proceed to any other post-agent step without committing first,
+you are violating this gate.
+</HARD-GATE>
+
 4. **Post-agent verification** (for each worktree, before merge):
 
    a. **Auto-commit worktree**: The agent may not commit its work. After each agent completes:
@@ -195,6 +202,12 @@ For each parallel group:
       git commit -m "feat: T-{id} — {task subject}"
       ```
       Only add files listed in the task's Files array — do not `git add -A`.
+
+      **Auto-Commit Red Flags** — if you catch yourself thinking any of these, STOP:
+
+      - "The agent probably committed" — It didn't. Every wave in a real run required manual commits. Always commit.
+      - "I'll commit after the quality gates" — No. Commit first, then gates. If gates fail, you need the commit to diff against.
+      - "There's nothing to commit" — Run `git status` in the worktree. If the agent produced no changes, that's a task failure, not a skip.
 
    b. **Shared file enforcement**: Check if the agent modified any shared files:
       ```bash
