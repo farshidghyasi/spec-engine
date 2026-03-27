@@ -86,8 +86,20 @@ For each wave, the team processes tasks through a parallel-then-sequential pipel
    - **All parallel Implementers are launched in a single message** (multiple Agent tool calls)
    - Each writes code, tests, wires it in, sets Wired field, produces handoff file
 
+
+<HARD-GATE>
+The FIRST thing you do after ANY agent completes is auto-commit its work.
+Before checking wiring, before running gates, before merging — commit.
+If you proceed to any other post-agent step without committing first,
+you are violating this gate.
+</HARD-GATE>
+
 2. **Post-agent verification** (for each worktree, before merge):
    a. **Auto-commit**: `git add <task Files>` then `git commit -m "feat: T-{id} — {subject}"`
+     **Auto-Commit Red Flags** — if you catch yourself thinking any of these, STOP:
+     - "The agent probably committed" — It didn't. Every wave in a real run required manual commits. Always commit.
+     - "I'll commit after the quality gates" — No. Commit first, then gates. If gates fail, you need the commit to diff against.
+     - "There's nothing to commit" — Run `git status` in the worktree. If the agent produced no changes, that's a task failure, not a skip.
    b. **Shared file enforcement**: If agent modified any shared file, revert and log warning
    c. **Cross-agent import resolution**: Verify imports between parallel agents match actual exports. Fix mismatches directly or re-dispatch sequentially.
 
@@ -128,7 +140,42 @@ For each wave, the team processes tasks through a parallel-then-sequential pipel
 #### Phase 4: Post-Wave Verification
 
 10. **Integration smoke test**: If `state.json.quality_gates.integration_cmd` is configured, run it. On failure: roll back to `pre_wave_sha`, re-run wave sequentially.
-11. **Wired status verification**: For each task marked `wired: "yes"`, grep the app entry point for an import of the task's exports. Downgrade to `"pending"` if not found.
+11. **Wired status verification**:
+
+<HARD-GATE>
+Do NOT mark any task as completed or advance to the next wave until you have run
+the grep verification below and confirmed non-zero imports. An agent saying
+"wired: yes" is not evidence. Grep output is evidence.
+</HARD-GATE>
+
+   For EACH task marked `wired: "yes"` in state.json:
+
+   a. **Identify the task's primary export**: Read the task's main output file and extract the exported name.
+
+   b. **Grep the entire codebase for imports of that export**:
+   ```bash
+   grep -r "import.*ExportName" --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" src/ | grep -v "node_modules" | grep -v "<the_defining_file_itself>"
+   ```
+
+   c. **Evaluate results**:
+   - If **zero imports found outside the defining file**: Downgrade `wired` to `"pending"` in state.json. Append to audit log: `"WIRED DOWNGRADE: T-X export '<name>' has 0 imports in codebase."`
+   - If imports found: Keep `wired: "yes"`. Log: `"WIRED VERIFIED: T-X export '<name>' imported by [file list]"`
+
+   d. **Pattern-specific checks**:
+   - **API routes**: grep for import AND check app entry point for `.use()` or route registration
+   - **React components**: grep for import AND check router/navigation config
+   - **Services/utilities**: must have at least one call site outside the defining file
+   - **Middleware**: grep for `.use()` pattern or imports
+
+   e. **This check is blocking**: A task with `wired: "pending"` is NOT complete. Do not advance to the next wave if wired-pending tasks exist that should be wired.
+
+   **Wiring Verification Red Flags** — if you catch yourself thinking any of these, STOP:
+
+   - "The agent said wired: yes" — Run the grep. Agent self-reports are wrong ~30% of the time.
+   - "I already checked this in a previous wave" — Check again. Code changes between waves.
+   - "It's an internal utility, nothing imports it" — Then it's dead code. Set wired: n/a with justification, or find the call site.
+   - "The tests pass so it must be wired" — Tests run in isolation. Wired means reachable from the app entry point.
+   - "I'll check wiring at the end" — Check per-wave. Deferring wiring checks is how 12 routes got marked wired:yes without being mounted.
 
 #### Phase 5: Commit
 
