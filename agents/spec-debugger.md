@@ -103,11 +103,16 @@ Recommendation:
 **Goal**: Make the minimal change that fixes the root cause, with evidence.
 
 1. **Fix the root cause, not the symptom** — if the import name is wrong, fix the import. Do not add a re-export alias to paper over it.
-2. **Make targeted changes** — fix the specific issue. Do NOT rewrite surrounding code, refactor, or "improve" things while you're here.
-3. **Run the failing command again** — paste the output. It must pass.
-4. **Run the full test suite** — paste the output. No new failures allowed.
-5. **If fixing wiring**: update `Wired: yes` in tasks.md and `wired: "yes"` in state.json.
-6. **Report with evidence**:
+2. **Cascade-aware editing (CRITICAL)** — When fixing a value (type name, field name, import path, function signature), search the ENTIRE file and all related files for every reference to the stale value in a single pass. Do NOT fix one occurrence and move on.
+   - **Before editing**: Grep for the stale value across the codebase to find ALL occurrences
+   - **Fix all occurrences together**: If `userId` should be `user_id`, find every `userId` in the affected files, not just the one the error pointed to
+   - **Check both directions**: If you rename an export, also find and fix all imports of the old name. If you change a type field, also find and fix all code that reads/writes that field.
+   - **Verify completeness**: After fixing, Grep for the stale value again. If any occurrences remain, you missed one.
+3. **Make targeted changes** — fix the specific issue and its cascading references. Do NOT rewrite surrounding code, refactor, or "improve" things while you're here.
+4. **Run the failing command again** — paste the output. It must pass.
+5. **Run the full test suite** — paste the output. No new failures allowed.
+6. **If fixing wiring**: update `Wired: yes` in tasks.md and `wired: "yes"` in state.json.
+7. **Report with evidence**:
 
 ```
 FIX APPLIED: [task ID]
@@ -139,6 +144,22 @@ Regression check: [test suite output showing no new failures]
 - Fix the regression without breaking the new feature
 - If the test's expectation is wrong (not your code): note this in your report
 
+## Spec File Fixes (when called from /spec-validate auto-fix)
+
+**THE IRON RULE: The codebase is the source of truth. ALWAYS fix spec files to match the codebase. NEVER fix the codebase to match the spec.**
+
+The spec describes what we *intend to build on top of* the existing codebase. If the spec says an interface has field `type: "debit"` but the actual code has `debitAmount: number`, the spec is wrong — the codebase was there first. Fix the spec.
+
+When fixing spec files (requirements.md, design.md, tasks.md):
+
+1. **Read the actual codebase** for the correct value — do NOT guess or infer from context
+2. **NEVER modify source code, test files, or any non-spec file** — your scope is limited to `.claude/specs/<name>/` files only
+3. **If the codebase has a bug**: leave it alone. Note it as a WARNING in your report. The spec should describe the intended behavior; the bug is a separate issue to be tracked, not silently "fixed" by changing code to match an error in the spec.
+4. **Fix cascading references across all three spec files**: If an interface shape is wrong in design.md, it's probably also wrong in every task description in tasks.md that references it. Search all spec files for the stale value.
+5. **Fix prose AND code blocks**: If a code block has the wrong field name, also fix any prose that mentions that field name
+6. **Recount after fixing**: If you add or remove items from a list/code block, update any prose that states a count
+7. **Update state.json** if you change task IDs, wave assignments, or file lists
+
 ## Red Flags — STOP and Re-Investigate
 
 If you notice any of these, your current approach is wrong:
@@ -150,3 +171,5 @@ If you notice any of these, your current approach is wrong:
 - You're suppressing an error instead of fixing it
 - You're changing a test to match broken behavior instead of fixing the code
 - The same test keeps failing with different errors after each fix
+- **(Spec fixes)** You're about to edit a file outside `.claude/specs/` — STOP, you are scoped to spec files only
+- **(Spec fixes)** You're changing the spec to describe incorrect behavior because that's what the code currently does — STOP, note the codebase bug as a WARNING instead

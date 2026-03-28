@@ -37,7 +37,8 @@
     "plugin_version": "1.0.0",
     "model_versions": {},
     "git_sha_start": null,
-    "prompt_hashes": []
+    "prompt_hashes": [],
+    "referenced_codebase_files": []
   },
 
   "quality_gates": {

@@ -89,6 +89,12 @@ Each task declares a `Files` field listing which files it will create/modify. Th
 ### Quality Gates
 After every implementation iteration: Lint -> Type Check -> Regression Test -> Secret Scan -> Integration Smoke Test (post-wave). Gates are auto-detected from project config or configured in init.sh. Gates run in **diff mode** when pre-existing errors exist — comparing error counts against a baseline to fail only on NEW errors.
 
+### Codebase Verification
+The planner and tasker both perform mandatory codebase verification before writing spec files. They grep for every referenced interface, read actual type definitions, verify import paths exist, and use exact field names from source files — never from memory or paraphrases. The `/spec` orchestrator builds a Verified Interface Registry from the actual codebase and passes it to the tasker. The tasker runs a 6-check self-validation pass after writing tasks.md. The validator includes a "Codebase Accuracy Check" that catches any remaining mismatches and auto-fixes ERROR-level issues by default (use `--no-fix` to skip).
+
+### Drift Detection
+Specs track which codebase files they reference (`state.json.reproducibility.referenced_codebase_files`). Before execution, `/spec-exec`, `/spec-loop`, and `/spec-validate` compare the current codebase against `git_sha_start` to detect if another spec (or manual edit) changed files this spec depends on. When drift is detected, the spec is auto-fixed to match the current codebase — the codebase is always the source of truth, never the reverse.
+
 ### Import Manifest
 Before dispatching each wave, the orchestrator scans completed task files and builds an import manifest of exact export names, function signatures, and file paths. This is included in every agent's prompt to prevent agents from guessing import names.
 

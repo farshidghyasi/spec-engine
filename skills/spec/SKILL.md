@@ -97,12 +97,46 @@ Delegate to the **spec-planner** agent using the Agent tool. Pass ALL context:
    - **Request changes** — go back to spec-planner with the user's feedback
    - **Cancel** — stop the workflow
 
+### Step 6.5: Build Interface Registry (MANDATORY before tasking)
+
+After design is approved, build a verified interface registry from the actual codebase. This prevents the tasker from guessing at interface shapes.
+
+1. **Read design.md** and extract every referenced:
+   - Type/interface name (e.g., `Transaction`, `UserProfile`, `ApiResponse`)
+   - Function/method name (e.g., `createTransaction`, `validateInput`)
+   - File path (e.g., `src/types/transaction.ts`, `src/services/auth.ts`)
+   - Database table/column reference
+   - API endpoint reference
+
+2. **For each referenced item**, use Grep/Read to find the actual definition in the codebase:
+   - Record exact type shapes with all field names and types
+   - Record exact function signatures (parameters, return types, async/sync)
+   - Record exact import paths as used by existing consumers
+   - If an item doesn't exist in the codebase, mark it as `[NEW]`
+
+3. **Compile the registry** as a markdown code block:
+   ```
+   ## Verified Interface Registry
+
+   // From src/types/transaction.ts
+   interface Transaction { id: string; debitAmount: number; creditAmount: number; status: "pending" | "completed" }
+
+   // From src/services/auth.ts
+   export async function validateToken(token: string): Promise<{ userId: string; role: Role }>
+
+   // [NEW] — to be created by this spec
+   interface AuditLog { ... }
+   ```
+
+4. **Pass this registry** to the spec-tasker agent in the next step. The tasker MUST use these exact shapes in task descriptions, not design.md paraphrases.
+
 ### Step 7: Tasks Phase (spec-tasker agent)
 
 After design approval, delegate to the **spec-tasker** agent:
 
 - Feature name and spec directory path
-- Instruction: read requirements.md and design.md, generate tasks.md, update state.json
+- The Verified Interface Registry from Step 6.5
+- Instruction: read requirements.md and design.md, use the provided Interface Registry as ground truth for all type shapes and function signatures, generate tasks.md, update state.json
 
 ### Step 8: Compute Integrity Manifest
 
@@ -111,6 +145,7 @@ After tasks are written:
 1. Compute SHA256 of requirements.md, design.md, tasks.md
 2. Update state.json `integrity` section with the hashes and current timestamp
 3. Record the current git SHA in `state.json.reproducibility.git_sha_start`
+4. **Populate `referenced_codebase_files`**: Scan design.md and tasks.md for all codebase file paths referenced (in `Files:` fields, import paths, interface source locations). Record these in `state.json.reproducibility.referenced_codebase_files`. This list is used for drift detection — if another spec modifies any of these files before this spec executes, the spec is stale and needs re-validation.
 
 ### Step 9: Parse init.sh
 

@@ -105,7 +105,8 @@ Every step below is mandatory. You WILL be tempted to skip steps that seem unnec
 4. **Check budget** — if `total_tokens >= budget_cap`, log a warning and continue
 5. **Check cross-spec dependencies** — verify dependent specs are complete
 6. Record starting git SHA in `state.json.reproducibility.git_sha_start` (if not already set)
-7. If quality gate commands are not yet in state.json, try to detect them:
+7. **Drift detection**: If `referenced_codebase_files` exists in state.json, run `git diff --name-only <git_sha_start>..HEAD -- <referenced_files>`. If any changed: auto-fix spec files by dispatching spec-validator + spec-debugger (codebase is source of truth — fix specs, never code), recompute integrity, update `git_sha_start`, log to audit log.
+8. If quality gate commands are not yet in state.json, try to detect them:
    - Check package.json, pyproject.toml, Makefile, Cargo.toml, go.mod
    - Update state.json.quality_gates
 

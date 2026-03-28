@@ -45,6 +45,19 @@ Every step below is mandatory. You WILL be tempted to skip steps that seem unnec
    - Log which files changed to audit log
    - Update the manifest and proceed — do NOT ask the user
 
+### Step 1.5: Drift Detection
+
+Check if the codebase changed under this spec since it was written:
+
+1. Read `state.json.reproducibility.git_sha_start` and `state.json.reproducibility.referenced_codebase_files`
+2. If both exist, run: `git diff --name-only <git_sha_start>..HEAD -- <referenced_files>`
+3. If any files changed:
+   - Log to audit log: `"DRIFT DETECTED: N referenced files changed since spec was written"`
+   - **Auto-fix**: Run the spec-validator then spec-debugger to update spec files to match the current codebase (same as `/spec-validate` auto-fix). The codebase is the source of truth — the spec must be updated, never the codebase.
+   - Recompute integrity manifest after fixes
+   - Update `git_sha_start` to current HEAD
+   - Present a summary of what drifted and what was fixed
+
 ### Step 2: Check Preconditions
 
 1. **Cross-spec dependencies**: If requirements.md has `## Depends On`, verify those specs are complete
