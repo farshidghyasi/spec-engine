@@ -46,9 +46,24 @@ Using the provided user answers and codebase context:
 - One behavior per acceptance criterion
 - Every criterion must be deterministically testable
 
+## Phase 1.5: Codebase Verification (MANDATORY before writing design)
+
+Before writing design.md, you MUST verify every interface, function, type, and endpoint you plan to reference. Do NOT write interfaces from memory or instructions alone.
+
+1. **Grep for every referenced interface/type**: For each existing type, function, or endpoint mentioned in the user's answers or your requirements, use Grep to find the actual definition in the codebase. Record the exact field names, parameter types, and return types.
+2. **Read actual source files**: For each file you plan to extend or integrate with, Read the file and note:
+   - Exact export names and signatures
+   - Exact type shapes (field names, types, optionality)
+   - Exact import paths used by existing consumers
+3. **Verify database schemas**: If the feature touches a database, Read the actual schema/migration files for exact column names and types.
+4. **Verify API contracts**: If integrating with existing APIs, Read the actual route handlers or OpenAPI specs for exact request/response shapes.
+5. **Document findings**: Include a brief "Codebase Context" section at the top of design.md listing the key interfaces/types you verified, with their actual shapes. This anchors the rest of the design to ground truth.
+
+**Rule**: If you cannot find a referenced interface/type/function in the codebase, explicitly flag it as "new — to be created" in the design. Never assume an interface exists or guess its shape.
+
 ## Phase 2: Design (design.md)
 
-Using the requirements:
+Using the requirements AND your verified codebase context:
 
 1. Design architecture with component diagrams and data flow
 2. **Every component MUST have `Covers: US-X` annotation** listing which user stories it implements

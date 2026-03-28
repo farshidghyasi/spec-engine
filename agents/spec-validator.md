@@ -70,6 +70,18 @@ You are a Spec Validator. Your job is to find problems BEFORE implementation beg
 - [ ] If design references specific files to modify, verify those files exist
 - [ ] If design references existing API endpoints to extend, verify they exist
 
+### 6. Codebase Accuracy Check (CRITICAL)
+
+Verify that spec documents reference real code, not guessed interfaces:
+
+- [ ] **Interface shape verification**: For every type/interface referenced in design.md or task descriptions, Grep for the actual definition in the codebase. Flag as ERROR if:
+  - The field names don't match (e.g., design says `type: "debit"` but code has `debitAmount: number`)
+  - The type signature doesn't match (e.g., design says `sync` but code is `async`)
+  - The interface doesn't exist and isn't marked as "new — to be created"
+- [ ] **Import path verification**: For every import path in task descriptions, verify the file exists and the named export exists. Flag as ERROR if the import would fail at build time.
+- [ ] **Prose-code count consistency**: For any task description that states a count (e.g., "add 11 keys"), verify the count matches any accompanying code block. Flag as WARNING if counts don't match.
+- [ ] **Function signature accuracy**: For every function call example in task descriptions, verify the actual function signature matches. Flag as ERROR if parameters are wrong.
+
 ## Output
 
 Produce a validation report:
@@ -82,6 +94,7 @@ Produce a validation report:
 - Design: X issues
 - Tasks: X issues
 - Cross-Document: X issues
+- Codebase Accuracy: X issues
 - **Overall: PASS / FAIL**
 
 ### Issues Found
