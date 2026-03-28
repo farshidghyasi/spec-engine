@@ -127,6 +127,17 @@ Gates run in **diff mode** when pre-existing errors exist — comparing error co
 
 Failure triggers a tiered recovery: Debugger retry (2x) -> Task rollback -> Wave rollback -> Human escalation.
 
+### Validation
+
+`/spec-validate` runs the spec-validator agent against a fixed severity rubric — not subjective judgment. Issues are classified by enumerated rules:
+
+- **ERROR** (blocks implementation): requirement with zero task coverage, circular DAG dependencies, state.json/tasks.md ID mismatches, exact value contradictions between documents, missing dependencies, API schema vs codebase type mismatches
+- **WARNING** (reported, non-blocking): naming concerns, missing annotations, ambiguous wording, missing error-path ACs
+
+Every reported issue must cite which rubric rule it matches (via a mandatory `Rule:` field). If the agent can't name a rule, the issue is not reportable. This makes validation behave like a linter (deterministic, stable output) rather than a reviewer (subjective, different every run).
+
+**Efficiency features**: A validation fingerprint skips re-running the validator entirely when spec files haven't changed since the last pass. Acknowledged warnings are stored in state.json and suppressed on subsequent runs unless the underlying spec text changed. Auto-fix dispatches the debugger but verifies fixes syntactically instead of re-running the full validator (preventing the discovery of new issues mid-run).
+
 ### Wiring Tracking
 
 Every task tracks a `Wired` field alongside its status:
@@ -134,12 +145,15 @@ Every task tracks a `Wired` field alongside its status:
 - **pending** — Code not yet connected to the application
 - **yes** — Code is reachable from the app's entry point
 - **n/a** — Infrastructure task with nothing to wire
+- **deferred** — Wire target is owned by a different task in a later wave (tracked via `wired_by` field in state.json)
 
 This prevents the most common failure mode in AI-driven development: code that exists but isn't connected. The implementer must set it, the tester refuses to test without it, the reviewer rejects if pending, and the acceptor reports integration health. A task is not complete until `Status: completed` AND `Wired: yes` (or `n/a`).
 
 **Wire into field**: Every component creation task declares a `Wire into:` field specifying the exact file where it must be imported (e.g., `Wire into: src/app.tsx (router)`). This target file is included in the task's `Files` array so the implementer owns the wiring change.
 
-**Grep-based verification**: Wired status is never trusted from agent self-reports. After each wave, spec-loop greps the entire codebase for actual imports of each component's exports. Components with zero imports are downgraded to `wired: "pending"` regardless of what the agent claimed. spec-accept runs an independent wiring audit before acceptance testing. This verification is enforced with a `<HARD-GATE>` block that prevents any task from being marked complete without grep evidence — matching the enforcement patterns used in superpowers skills.
+**Deferred wiring**: When a task's wire target is a shared file (e.g., router, navigation config) owned by a later-wave integration task, the tasker sets `Wired: deferred(T-X)` where T-X is the integration task. The integration task declares a `Resolves` field listing which upstream tasks it wires. After T-X completes, the orchestrator greps for imports and resolves the deferred tasks to `yes` or downgrades to `pending` if wiring is missing. Deferred tasks do not block wave advancement, but any task still deferred at spec completion is flagged as an error.
+
+**Grep-based verification**: Wired status is never trusted from agent self-reports. After each wave, spec-loop greps the entire codebase for actual imports of each component's exports. Components with zero imports are downgraded to `wired: "pending"` regardless of what the agent claimed. A post-wave **wiring resolution pass** checks completed integration tasks and resolves any deferred upstream tasks. spec-accept runs an independent wiring audit before acceptance testing. This verification is enforced with a `<HARD-GATE>` block that prevents any task from being marked complete without grep evidence — matching the enforcement patterns used in superpowers skills.
 
 ### Parallel Execution Safety
 
@@ -207,7 +221,7 @@ Execution can be interrupted and resumed across sessions with zero re-orientatio
 
 ### Security Model
 
-- **No `--dangerously-skip-permissions` by default** — each agent has only the tools it needs. Scripts accept `--yolo` to opt into skipping permissions for fully autonomous CI/CD execution.
+- **No `--dangerously-skip-permissions`** — each agent has only the tools it needs. Execution skills run fully autonomously by default without needing elevated permissions.
 - **Spec integrity verification** — SHA256 manifests checked before execution
 - **Secret-aware staging** — sensitive files detected and excluded from commits
 - **Input validation** — strict regex on spec names, URL validation
@@ -250,20 +264,17 @@ Start from a pre-filled template:
 Shell scripts for headless execution with built-in safety:
 
 ```bash
-# Normal mode (prompts for permissions)
+# Default: fully autonomous (no permission prompts)
 ./scripts/spec-loop.sh --spec-name user-authentication
 ./scripts/spec-team.sh --spec-name payment-processing --max-iterations 30
 
-# Fully autonomous (skips all permission prompts)
-./scripts/spec-loop.sh --spec-name user-authentication --yolo
-./scripts/spec-exec.sh --yolo
-./scripts/spec-team.sh --spec-name payment-processing --yolo
+# Re-enable permission prompts if needed
+./scripts/spec-loop.sh --spec-name user-authentication --no-skip-permissions
 ```
 
 Script features:
 - **Auto-detect** — `--spec-name` is optional if only one spec exists
 - **Worktree isolation** — runs in a `spec/<name>` branch (disable with `--no-worktree`)
-- **`--yolo` mode** — passes `--dangerously-skip-permissions` for fully autonomous execution
 - **Checkpoint recovery** — creates checkpoint commits before each iteration, rolls back on crash
 - **Crash safety net** — detects if state.json wasn't updated and appends fallback audit entry
 - **Duplicate prevention** — `spec-team.sh` prevents concurrent runs on the same spec

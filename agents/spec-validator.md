@@ -82,27 +82,70 @@ Verify that spec documents reference real code, not guessed interfaces:
 - [ ] **Prose-code count consistency**: For any task description that states a count (e.g., "add 11 keys"), verify the count matches any accompanying code block. Flag as WARNING if counts don't match.
 - [ ] **Function signature accuracy**: For every function call example in task descriptions, verify the actual function signature matches. Flag as ERROR if parameters are wrong.
 
-## Output
+## Severity Rubric
 
-Produce a validation report:
+Severity is not a judgment call. Use these fixed rules.
+
+### ERROR (only these qualify — blocks implementation)
+
+- Requirement with zero task coverage
+- Task references a file not defined anywhere in spec or codebase
+- Circular dependency in the DAG
+- Task IDs in state.json don't match tasks.md
+- Wave assignments in state.json don't match tasks.md
+- Exact value contradiction between documents (actual number/string mismatch)
+- Task depends on a same-wave or later-wave task
+- Missing dependency — a package, file, or type is referenced but never created/installed
+- API schema contradicts the type definitions in the codebase
+- Formula produces different numeric results across documents
+
+### WARNING (everything else worth reporting)
+
+- Naming concerns, missing annotations, version pin suggestions
+- Ambiguous wording, imperfect test mocks, prose-only coverage references
+- Task missing error-path acceptance criterion (quality gap, not structural)
+
+### Not reportable
+
+- Style preferences, "could be clearer" suggestions
+- Anything you considered and decided against during analysis — do not include withdrawn findings
+
+## Output Discipline
+
+Do not include reasoning chains, retractions, or "let me re-examine" in the report. Verify before writing. If you wrote "withdrawn" or "retracted", you didn't verify first — delete it entirely. Every finding in the report must be a committed conclusion, not a thought process.
+
+## Output Format
+
+Produce a validation report using this exact structure:
 
 ```markdown
 ## Spec Validation Report: [feature-name]
 
 ### Summary
-- Requirements: X issues
-- Design: X issues
-- Tasks: X issues
-- Cross-Document: X issues
-- Codebase Accuracy: X issues
+- Requirements: X issues (Y errors, Z warnings)
+- Design: X issues (Y errors, Z warnings)
+- Tasks: X issues (Y errors, Z warnings)
+- Cross-Document: X issues (Y errors, Z warnings)
+- Codebase Accuracy: X issues (Y errors, Z warnings)
 - **Overall: PASS / FAIL**
 
-### Issues Found
-[Numbered list with severity: ERROR (blocks implementation) or WARNING (review recommended)]
+### Issues
+
+**[ERROR-1]**: [one-line description]
+- Location: [file:section or file:line]
+- Rule: [which severity rule from the rubric this matches]
+- Evidence: [document A says X, document B says Y]
+
+**[WARN-1]**: [one-line description]
+- Location: [file:section or file:line]
+- Rule: [which severity rule or WARNING category]
+- Evidence: [what was found]
 
 ### Recommendations
-[Specific fixes needed before proceeding]
+[Specific fixes needed for ERROR-level issues only]
 ```
+
+The **Rule:** field is mandatory for every issue. If you cannot name a rule from the severity rubric, the issue is not reportable.
 
 If all checks pass, output: "Validation PASSED. Spec is ready for implementation."
 If any ERROR-level issues found, output: "Validation FAILED. Fix the issues above before proceeding."

@@ -44,21 +44,52 @@ If `spec-name` is omitted, auto-detect if only one spec exists.
       Auto-fix will update the spec to match the current codebase.
       ```
    f. Drift-detected specs get auto-fixed regardless of `--no-fix` (since the spec is guaranteed stale). The user is always shown what changed.
-3. **Delegate to spec-validator agent**: Use the Agent tool to spawn the spec-validator agent with:
+3. **Validation fingerprint check**: Before spawning the validator agent, check if validation can be skipped:
+   a. Read `state.json.validation.report_hash` and `state.json.integrity_manifest`
+   b. Recompute SHA256 hashes of `requirements.md`, `design.md`, `tasks.md`, and `state.json`
+   c. If ALL hashes match the integrity manifest AND no drift was detected in step 2:
+      - Output: `"Spec unchanged since last validation (hash: <short_hash>) — PASS."`
+      - Skip to step 7 (update integrity manifest)
+   d. If any hash changed or drift was detected, proceed to step 4
+
+4. **Delegate to spec-validator agent**: Use the Agent tool to spawn the spec-validator agent with:
    - The spec directory path
    - Instruction to run the full validation checklist
-4. **Present results**: Show the validation report to the user
-5. **Auto-fix (default, skip if `--no-fix`)**: If validation failed with ERROR-level issues:
+   - If `state.json.validation.acknowledged_warnings` exists, include them with: "These warnings were already reported. Only re-report a warning if the underlying spec text has changed (compare against the integrity hashes from the previous run). Report new issues normally."
+
+5. **Present results**: Show the validation report to the user
+
+6. **Auto-fix (default, skip if `--no-fix`)**: If validation failed with ERROR-level issues:
    a. Parse the validation report for ERROR-level issues
    b. Dispatch the spec-debugger agent with:
       - The spec directory path
       - The full validation report
       - Instruction: "Fix the ERROR-level issues in the spec files (requirements.md, design.md, tasks.md) by reading the actual codebase. The codebase is the source of truth — ALWAYS fix spec files to match the codebase, NEVER fix the codebase to match the spec. For interface shape mismatches, grep for the real definition and update the spec to match. For import path errors, verify the correct path and fix it. For count mismatches, recount and fix the prose. Your scope is ONLY files inside .claude/specs/ — do not touch source code, tests, or any other file."
-   c. After debugger completes, re-run the spec-validator agent
+   c. **Verify fixes syntactically** (do NOT re-run the validator agent):
+      - Confirm state.json parses as valid JSON
+      - Confirm task IDs in state.json still match tasks.md
+      - Confirm wave assignments in state.json still match tasks.md
+      - Recompute integrity hashes to verify spec files were actually modified
+      - If any syntactic check fails, show remaining issues and suggest manual fixes
    d. Present a **change summary** showing what was fixed:
       ```
       ## Auto-Fixed Issues
       - [file]: [what changed] — [why]
       ```
-   e. If still failing after auto-fix, show remaining issues and suggest manual fixes
-6. **Update integrity manifest**: If validation passes, recompute SHA256 hashes, update `referenced_codebase_files`, and set `git_sha_start` to current HEAD in state.json
+
+7. **Update state.json validation state**:
+   a. Recompute SHA256 hashes and update `integrity_manifest`
+   b. Update `referenced_codebase_files` and set `git_sha_start` to current HEAD
+   c. Collect all WARNING-level findings from the validation report and write to state.json:
+      ```json
+      "validation": {
+        "last_pass": "<ISO-8601>",
+        "status": "pass|fail",
+        "report_hash": "<SHA256 of full validation report>",
+        "acknowledged_warnings": [
+          "WARN-1: next-mdx-remote pin lacks version comment",
+          "WARN-2: T-004 Covers field missing NFR-19/20/21 by number"
+        ]
+      }
+      ```
+   d. On subsequent runs, the acknowledged warnings are passed to the validator agent (step 4) to prevent rediscovery
