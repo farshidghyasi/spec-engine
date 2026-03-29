@@ -88,11 +88,10 @@ Check TWO sources (either is sufficient):
 
 Check for documentation artifacts:
 
-1. Use Glob: `.claude/specs/<name>/evidence/*doc*`
-2. Use Glob: `.claude/specs/<name>/*doc*`
+1. Use Glob: `.claude/specs/<name>/docs/*`
 
-- **PASS**: Any documentation file found
-- **FAIL**: No documentation artifacts
+- **PASS**: Any file found in the `docs/` subdirectory
+- **FAIL**: `docs/` directory missing or empty
 
 #### 2i. Retro
 
