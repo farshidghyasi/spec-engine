@@ -59,15 +59,22 @@ For each discovered spec at `.claude/specs/<name>/`, verify these phases by read
 - **PASS**: File exists AND contains at least one `### T-` heading (task defined)
 - **FAIL**: File missing or no tasks found
 
-#### 2d. Execution
+#### 2d. Validated
+
+- Read `.claude/specs/<name>/state.json`
+- Parse the `validation` object
+- **PASS**: `validation.status` equals `"pass"`
+- **FAIL**: `state.json` missing, no `validation` object, or `validation.status` is not `"pass"`
+
+#### 2f. Execution
 
 - Read `.claude/specs/<name>/state.json`
 - Parse the `tasks` object
 - Count entries where `status` equals `"completed"` and total entries
 - **Display**: Show as `completed/total` (e.g., `7/12`)
-- **Not started**: If state.json missing or tasks object is empty, show `-`
+- **Not started**: If state.json missing or tasks object is empty, show `—`
 
-#### 2e. Accepted
+#### 2g. Accepted
 
 Check TWO sources (either is sufficient):
 
@@ -77,7 +84,7 @@ Check TWO sources (either is sufficient):
 - **PASS**: Audit log has acceptance entry OR acceptance evidence file exists
 - **FAIL**: Neither found
 
-#### 2f. Docs
+#### 2h. Docs
 
 Check for documentation artifacts:
 
@@ -87,7 +94,7 @@ Check for documentation artifacts:
 - **PASS**: Any documentation file found
 - **FAIL**: No documentation artifacts
 
-#### 2g. Retro
+#### 2i. Retro
 
 Check TWO sources:
 
@@ -97,7 +104,7 @@ Check TWO sources:
 - **PASS**: `retro.md` exists OR `lessons.json` has entries for this spec
 - **FAIL**: Neither found
 
-#### 2h. Released
+#### 2j. Released
 
 - Use Glob: `.claude/specs/<name>/release.md`
 - Read the file if it exists to verify it is non-empty (more than just whitespace)
@@ -113,35 +120,36 @@ Categorize each spec based on its verified phases:
 | **Released** | Released phase = PASS |
 | **Accepted** | Accepted = PASS but Released = FAIL |
 | **In progress** | Execution shows at least 1 completed task |
-| **In planning** | Requirements or Design = PASS but no execution |
+| **Validated** | Validated = PASS but no execution started |
+| **In planning** | Requirements or Design or Tasks = PASS but not yet validated |
 | **Draft** | Only requirements started (no design yet) |
 
 ### Step 4: Render the dashboard
 
-Sort specs by progress (most complete first — released > accepted > in progress > planning > draft). Within the same stage, sort alphabetically.
+Sort specs by progress (most complete first — released > accepted > in progress > validated > planning > draft). Within the same stage, sort alphabetically.
 
 Display format:
 
 ```
-== Spec Dashboard ==
+📋 Spec Dashboard
 
-Spec              | Req | Design | Tasks | Exec    | Accepted | Docs | Retro | Released
-------------------|-----|--------|-------|---------|----------|------|-------|----------
-auth-system       |  Y  |   Y    |  Y    | 10/10   |    Y     |  Y   |  Y    |   Y
-payment-flow      |  Y  |   Y    |  Y    |  6/12   |    -     |  -   |  -    |   -
-notification-svc  |  Y  |   Y    |  -    |  -      |    -     |  -   |  -    |   -
-search-feature    |  Y  |   -    |  -    |  -      |    -     |  -   |  -    |   -
+| Spec             | Req | Design | Tasks | Valid | Exec  | Accepted | Docs | Retro | Rel |
+|------------------|-----|--------|-------|-------|-------|----------|------|-------|-----|
+| auth-system      | ✅  | ✅     | ✅    | ✅    | 10/10 | ✅       | ✅   | ✅    | ✅  |
+| payment-flow     | ✅  | ✅     | ✅    | ✅    | 6/12  | ❌       | ❌   | ❌    | ❌  |
+| notification-svc | ✅  | ✅     | ❌    | ❌    | —     | ❌       | ❌   | ❌    | ❌  |
+| search-feature   | ✅  | ❌     | ❌    | ❌    | —     | ❌       | ❌   | ❌    | ❌  |
 
-Legend: Y = verified  - = not done  X = failed (--deep only)
+✅ = verified  ❌ = not done  ⚠️ = failed validation (--deep only)
 
 Summary: 4 specs | 1 released | 1 in progress | 2 in planning
 ```
 
 Symbols:
-- `Y` — phase verified through file content
-- `-` — phase not done (file missing or empty)
-- `X` — phase exists but failed deep validation (only in `--deep` mode)
-- Exec column always shows `completed/total` or `-`
+- `✅` — phase verified through file content
+- `❌` — phase not done (file missing or empty)
+- `⚠️` — phase exists but failed deep validation (only in `--deep` mode)
+- Exec column shows `completed/total` or `—` (em dash) if not started
 
 ### Step 5: --deep mode (only if flag provided)
 
@@ -157,18 +165,18 @@ Agent tool:
            and cross-document consistency. Return a structured result with pass/fail per check."
 ```
 
-2. For specs where validation finds issues, update the table symbol from `Y` to `X` for the affected phase
+2. For specs where validation finds issues, update the table symbol from `✅` to `⚠️` for the affected phase
 3. Append a validation summary:
 
 ```
-== Deep Validation ==
+🔍 Deep Validation
 
-auth-system: PASS (all checks passed)
-payment-flow: WARN
-  - Requirements: 2 acceptance criteria missing EARS notation
-  - Design: traceability gap -- US-3 has no component mapping
-notification-svc: PASS
-search-feature: SKIP (design not yet created)
+| Spec             | Result | Details                                              |
+|------------------|--------|------------------------------------------------------|
+| auth-system      | ✅ PASS | All checks passed                                    |
+| payment-flow     | ⚠️ WARN | Req: 2 criteria missing EARS; Design: US-3 unmapped  |
+| notification-svc | ✅ PASS | All checks passed                                    |
+| search-feature   | ⏭️ SKIP | Design not yet created                                |
 ```
 
 Dispatch validators in parallel for independent specs (use multiple Agent tool calls in a single response).
@@ -178,6 +186,7 @@ Dispatch validators in parallel for independent specs (use multiple Agent tool c
 After the table, suggest the most impactful next action based on the overall state:
 
 - If any spec is in progress: `Next: Run /spec-status <name> for detailed progress on in-progress specs`
-- If any spec is in planning: `Next: Run /spec-exec <name> or /spec-loop <name> to start execution`
+- If any spec is validated: `Next: Run /spec-exec <name> or /spec-loop <name> to start execution`
+- If any spec is in planning: `Next: Run /spec-validate <name> to validate before execution`
 - If any spec is accepted but not released: `Next: Run /spec-release <name> to generate release artifacts`
 - If all specs are released: `All specs complete! Run /spec-retro <name> on any spec missing a retrospective`
