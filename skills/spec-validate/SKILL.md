@@ -77,10 +77,34 @@ If `spec-name` is omitted, auto-detect if only one spec exists.
       - [file]: [what changed] — [why]
       ```
 
+<HARD-GATE>
+Step 7 is MANDATORY after every validation run — whether the result is pass, fail, or fail-then-fixed.
+The dashboard reads `state.json.validation.status` to populate the "Valid" column.
+If you skip Step 7, validation results are invisible to `/spec-dashboard` and `/spec-status`.
+
+You WILL be tempted to skip this step. These rationalizations have all caused real failures:
+
+| You will think... | Reality |
+|---|---|
+| "I already showed the results to the user, we're done" | The user saw them. The dashboard didn't. state.json is the machine-readable record. |
+| "The auto-fix summary was the last step" | The fix summary is user output. state.json is system state. Both are required. |
+| "Validation passed, nothing to write" | A pass is a status. "No status" and "pass" are not the same thing. Write it. |
+| "I'll update state.json next time" | There is no next time. Each validation run is independent. |
+| "The spec was unchanged, I skipped to step 7 already" | Good — but you still need to write the status. The fingerprint shortcut skips the validator agent, not the state update. |
+
+After writing state.json, you MUST read it back and confirm `validation.status` is present.
+If the read-back shows no `validation.status` field, the write failed — fix it before responding.
+</HARD-GATE>
+
 7. **Update state.json validation state**:
    a. Recompute SHA256 hashes and update `integrity_manifest`
    b. Update `referenced_codebase_files` and set `git_sha_start` to current HEAD
-   c. Collect all WARNING-level findings from the validation report and write to state.json:
+   c. **Determine status**:
+      - No ERRORs found → `"pass"`
+      - ERRORs found AND auto-fix resolved all of them → `"pass"`
+      - ERRORs found AND `--no-fix` was used → `"fail"`
+      - ERRORs found AND auto-fix failed to resolve some → `"fail"`
+   d. Collect all WARNING-level findings from the validation report and write to state.json:
       ```json
       "validation": {
         "last_pass": "<ISO-8601>",
@@ -92,4 +116,5 @@ If `spec-name` is omitted, auto-detect if only one spec exists.
         ]
       }
       ```
-   d. On subsequent runs, the acknowledged warnings are passed to the validator agent (step 4) to prevent rediscovery
+   e. **Verify the write**: Read back `state.json` and confirm `validation.status` equals the value you intended to write. If it doesn't match, fix the file before proceeding.
+   f. On subsequent runs, the acknowledged warnings are passed to the validator agent (step 4) to prevent rediscovery
