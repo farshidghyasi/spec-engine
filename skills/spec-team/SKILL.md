@@ -59,6 +59,23 @@ Each agent receives:
 - Previous agent's handoff file (~200 tokens)
 - Total per agent: ~600 tokens (vs ~6000 in old plugin)
 
+## Live Progress Streaming
+
+During execution, emit structured progress lines for real-time visibility:
+
+**Format:** `[HH:MM:SS] ▸ EVENT │ details`
+
+**Required emission points:**
+- Before each wave: `[12:34:56] ▸ Wave 2/4 │ 3 pending tasks`
+- Before each phase: `[12:34:57] ▸ Phase 1: Implementing │ T-5, T-6 (parallel)`
+- After each task: `[12:35:12] ▸ T-5 implemented │ 5/8 tasks done`
+- After testing: `[12:35:30] ▸ T-5 tested ✓`
+- After review: `[12:36:00] ▸ Wave 2 reviewed ✓`
+- After each quality gate: `[12:35:15] ▸ lint ✓ │ typecheck ✓ │ test ✓`
+- On completion: `[12:40:00] ▸ COMPLETE │ 8/8 tasks │ ~64k tokens`
+
+Append each line to `.claude/specs/<name>/progress.log`.
+
 ## Team Workflow
 
 ### Per-Wave Execution
@@ -73,6 +90,7 @@ For each wave, the team processes tasks through a parallel-then-sequential pipel
 4. **Build parallel groups** from file ownership (same algorithm as spec-loop):
    - Tasks with non-overlapping Files run in parallel
    - Tasks with file conflicts run sequentially after the parallel group
+5. **Run lifecycle hook**: Execute `hook_on_wave_start` with args: `<spec_name> <wave_number>`. Best-effort.
 
 #### Phase 1: Parallel Implementation + Wiring
 
@@ -206,3 +224,4 @@ If Debugger fails twice on the same issue:
 When ALL tasks have status "completed" AND wired is "yes" or "n/a" in state.json:
 - Present summary with quality metrics, wiring health, and parallel execution stats
 - Suggest next steps: /spec-accept, /spec-docs, `gh pr create --head spec/<name>`
+- **Run lifecycle hook**: Execute `hook_on_spec_complete` with args: `<spec_name> <final_status>`. Synchronous (wait for completion).
