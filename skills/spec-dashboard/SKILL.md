@@ -15,11 +15,12 @@ Display a portfolio-level view of all specs with verified lifecycle phase comple
 ## Usage
 
 ```
-/spec-dashboard [--deep]
+/spec-dashboard [--deep] [--deps]
 ```
 
 - **Default**: Fast file-based verification of all specs
 - **`--deep`**: Additionally runs spec-validator per spec for semantic validation
+- **`--deps`**: Show cross-spec dependency graph
 
 ## Workflow
 
@@ -179,6 +180,30 @@ Agent tool:
 ```
 
 Dispatch validators in parallel for independent specs (use multiple Agent tool calls in a single response).
+
+### Step 5.5: Dependency Graph (only if --deps)
+
+If `--deps` is specified:
+
+1. For each spec, read its `requirements.md` and parse the `## Depends On` section for dependency names
+2. Build a dependency map: `{ spec_name: [dependency_names] }`
+3. Render an ASCII dependency graph:
+
+```
+🔗 Dependency Graph
+
+auth-system (10/10 ✅)
+├── payment-flow (6/12 🔄) ── depends on: auth-system
+│   └── notification-svc (0/0 📋) ── depends on: payment-flow
+└── user-dashboard (0/5 📋) ── depends on: auth-system
+
+search-feature (0/0 📋) ── no dependencies
+
+Legend: ✅ complete  🔄 in progress  📋 not started  🚫 blocked
+```
+
+4. Highlight blocked specs: specs whose dependencies are not complete should show `🚫 BLOCKED` with the incomplete dependency name
+5. Detect and warn about circular dependencies using DFS (same algorithm as `lib/deps.sh`)
 
 ### Step 6: Suggest next actions
 
