@@ -182,6 +182,18 @@ Partition pending tasks into parallel groups based on file ownership:
 
 If `--no-parallel` is specified, skip this step and process all tasks sequentially.
 
+#### Per-Wave Escalation Heuristic
+
+Even when `--no-parallel` is NOT specified, automatically downgrade a wave to sequential if:
+
+1. **Dependency overlap**: Any two tasks in the wave share a dependency target (e.g., both depend on T-1's output) AND either task modifies the dependency's files
+2. **High failure history**: Any task in the wave has `failures >= 1` from a previous iteration (indicates complexity that benefits from sequential execution with full context)
+3. **Shared import patterns**: Both tasks import from the same file that was created in a previous wave AND both tasks will add new exports/modifications to it
+
+When downgrading, log: `"SEQUENTIAL ESCALATION: Wave N downgraded to sequential — [reason]"` in the audit log.
+
+This check runs per-wave, not once globally. Wave 1 can be parallel while Wave 2 is sequential.
+
 #### 2d: Execute Parallel Group
 
 For each parallel group:
