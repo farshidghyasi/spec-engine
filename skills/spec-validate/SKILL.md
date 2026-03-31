@@ -26,6 +26,7 @@ If `spec-name` is omitted, auto-detect if only one spec exists.
 ## Options
 
 - `--no-fix`: Skip auto-fix and only report errors. By default, validation automatically fixes ERROR-level issues.
+- `--strict-lessons`: Promote lessons-derived validation rules from WARNING to ERROR severity. Use when you want lesson patterns to block execution.
 
 ## Workflow
 
@@ -51,6 +52,33 @@ If `spec-name` is omitted, auto-detect if only one spec exists.
       - Output: `"Spec unchanged since last validation (hash: <short_hash>) — PASS."`
       - Skip to step 7 (update integrity manifest)
    d. If any hash changed or drift was detected, proceed to step 4
+
+### Step 3.5: Derive Validation Rules from Lessons
+
+If `.claude/specs/lessons.json` exists:
+
+1. Read lessons.json and extract entries with `category: "pattern"` or `category: "failure"`
+2. For each relevant lesson, generate a WARNING-level validation rule:
+
+   **Lesson → Rule mapping:**
+   - Lesson about missing error handling → WARNING if any acceptance criterion lacks an error-path counterpart
+   - Lesson about auth requirements → WARNING if design.md has API routes without auth mention
+   - Lesson about file size limits → WARNING if any task's Files list has >5 files
+   - Lesson about wiring failures → WARNING if tasks marked `Wired: n/a` exceed 30% of total
+
+3. Include derived rules in the validator agent prompt:
+   ```
+   ## Lessons-Derived Rules (WARNING severity)
+   These rules were automatically derived from lessons.json.
+   Report them as WARNING, not ERROR.
+
+   - WARN-L1: [rule description] (from lesson: "[lesson text]")
+   - WARN-L2: [rule description] (from lesson: "[lesson text]")
+   ```
+
+4. If `--strict-lessons` flag is provided, promote lesson-derived rules to ERROR severity.
+
+**Note:** Lesson-derived rules are pattern-matched text checks, not arbitrary code execution. Each rule checks for the presence or absence of specific patterns in spec file content.
 
 4. **Delegate to spec-validator agent**: Use the Agent tool to spawn the spec-validator agent with:
    - The spec directory path
