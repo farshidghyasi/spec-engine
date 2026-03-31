@@ -35,6 +35,17 @@ Every step below is mandatory. You WILL be tempted to skip steps that seem unnec
 | "Post-merge build failed but it's unrelated" | It's never unrelated. A failed build means the merge broke something. Stop and fix. |
 | "Pre-existing errors, ignore gate output" | Use diff mode. Compare against baseline. You cannot distinguish new from old without it. |
 
+## Progress Streaming
+
+Emit structured progress lines during execution:
+
+- Before task dispatch: `[HH:MM:SS] ▸ T-X implementing │ <files>`
+- After task completes: `[HH:MM:SS] ▸ T-X completed │ N/M tasks done`
+- After quality gates: `[HH:MM:SS] ▸ lint ✓ │ typecheck ✓ │ test ✓`
+- On wiring check: `[HH:MM:SS] ▸ T-X wired ✓` or `[HH:MM:SS] ▸ T-X wired ✗ (downgraded)`
+
+Append each line to `.claude/specs/<name>/progress.log`.
+
 ## Workflow
 
 ### Step 1: Load State
@@ -188,6 +199,7 @@ After successful quality gates:
 5. Increment `state.json.execution.tasks_since_checkpoint`
 6. Append audit log entry: task_completed event with git SHA, tokens, quality gate results, parallel=true/false
 7. Record model version in `state.json.reproducibility.model_versions` if not already present
+8. **Run lifecycle hook**: For each completed task, execute `hook_on_task_complete` if configured in init.sh. Best-effort.
 
 ### Step 7: Commit
 
@@ -200,6 +212,7 @@ After successful quality gates:
 2. If current wave is complete, advance `state.json.execution.current_wave`
 3. Report status: "Completed T-X, T-Y (parallel, Wired: yes). Wave 1: 4/4 done. Advancing to Wave 2. 7/15 tasks total."
 4. If all tasks complete, suggest next steps: `/spec-accept`, `/spec-docs`, `gh pr create --head spec/<name>`
+5. If all tasks complete, run `hook_on_spec_complete` synchronously if configured in init.sh.
 
 ## Dry-Run Mode
 
