@@ -338,7 +338,9 @@ you are violating this gate.
 
 12. **Update state.json**: mark completed tasks (only those that passed file existence check), record tokens
 
-13. **Commit** with descriptive message listing all task IDs in the batch
+13. **Run lifecycle hook**: For each completed task, if `hook_on_task_complete` is configured in init.sh, execute it with args: `<spec_name> <task_id> <status>`. Best-effort.
+
+14. **Commit** with descriptive message listing all task IDs in the batch
 
 #### 2e: Post-Wave Checks
 

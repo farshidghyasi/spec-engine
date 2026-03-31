@@ -42,7 +42,7 @@ run_hook() {
 
   # Execute hook in background, capture stderr, timeout after 30s
   (
-    timeout 30 bash -c "$hook_cmd $*" 2>/tmp/spec-hook-stderr.$$ || true
+    timeout 30 bash -c "$hook_cmd" -- "$@" 2>/tmp/spec-hook-stderr.$$ || true
     local stderr
     stderr="$(cat /tmp/spec-hook-stderr.$$ 2>/dev/null)"
     rm -f /tmp/spec-hook-stderr.$$
@@ -70,5 +70,5 @@ run_hook_sync() {
     return 0
   fi
 
-  timeout 30 bash -c "$hook_cmd $*" 2>&1 || true
+  timeout 30 bash -c "$hook_cmd" -- "$@" 2>&1 || true
 }
