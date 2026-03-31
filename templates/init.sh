@@ -6,27 +6,25 @@
 # These values are read into state.json and used by quality gates.
 
 # ==============================================================================
-# QUALITY GATES (used by spec-exec and spec-loop)
+# QUALITY GATES — NEW FORMAT (recommended)
 # ==============================================================================
-# These commands run automatically after every implementation iteration.
+# Define gates as an array of "name:command" entries.
+# Gates run in order after every implementation iteration.
 # If a gate fails, the debugger agent attempts to fix the issue.
+#
+# gates=("lint:npm run lint" "typecheck:npx tsc --noEmit" "test:npm test")
+# gates=("lint:ruff check ." "typecheck:mypy ." "test:pytest")
+# gates=("lint:golangci-lint run" "test:go test ./...")
 
-# Lint command (catches style violations, unused vars, etc.)
+# ==============================================================================
+# QUALITY GATES — LEGACY FORMAT (still supported)
+# ==============================================================================
+# If you prefer individual variables, these are auto-converted to the gates
+# array format at runtime. Both formats work; if gates= is defined, it wins.
+#
 # lint_cmd="npm run lint"
-# lint_cmd="npx eslint . --ext .ts,.tsx"
-# lint_cmd="ruff check ."
-# lint_cmd="golangci-lint run"
-
-# Type check command (catches type errors, hallucinated imports)
 # typecheck_cmd="npx tsc --noEmit"
-# typecheck_cmd="mypy ."
-# typecheck_cmd="pyright"
-
-# Test command (runs FULL test suite for regression detection)
 # test_cmd="npm test"
-# test_cmd="npx vitest run"
-# test_cmd="pytest"
-# test_cmd="go test ./..."
 
 # ==============================================================================
 # DEVELOPMENT SERVER
@@ -57,3 +55,15 @@
 # Commands that implementation agents are allowed to run.
 # Only these commands (plus git, ls, cat, head, tail) are permitted.
 # allowed_commands="npm,npx,node,python,pip,pytest,go,make,curl"
+
+# ==============================================================================
+# LIFECYCLE HOOKS (optional)
+# ==============================================================================
+# Shell commands executed at lifecycle events. Best-effort (non-blocking).
+# Each hook receives event-specific arguments (see docs).
+#
+# hook_on_wave_start=""      # args: spec_name, wave_number
+# hook_on_task_complete=""   # args: spec_name, task_id, status
+# hook_on_spec_complete=""   # args: spec_name, final_status
+#
+# Example: hook_on_spec_complete="bash .claude/hooks/slack-notify.sh"
