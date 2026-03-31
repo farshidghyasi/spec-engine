@@ -19,6 +19,10 @@ Create a new specification using the 3-phase workflow: Requirements, Design, Tas
 
 - `feature-name` (required): Name for the feature spec (lowercase, hyphens, dots, underscores only)
 
+## Options
+
+- `--consensus`: Enable consensus planning. After the planner writes the initial draft, an Architect and Critic review it before finalization. Adds ~2x tokens to the planning phase but catches more design issues.
+
 ## Workflow
 
 ### Step 1: Validate and Initialize
@@ -80,6 +84,28 @@ Delegate to the **spec-planner** agent using the Agent tool. Pass ALL context:
 - Preset content (if selected in Step 3), labeled as "Preset Template — customize, do not copy verbatim"
 - Relevant lessons from lessons.json (if any)
 - Instruction: write both requirements.md and design.md, do NOT ask clarifying questions
+
+### Step 5.5: Consensus Deliberation (only if --consensus)
+
+If `--consensus` flag was provided:
+
+1. **Architect Review**: Dispatch spec-consultant agent with:
+   - Role: "Software Architect"
+   - Question: "Review this requirements.md and design.md. Evaluate: component boundaries, scalability, integration patterns, and technical debt risk. List specific concerns and improvement suggestions."
+   - Context: The full requirements.md and design.md content
+
+2. **Critic Review**: Dispatch spec-consultant agent (in parallel with Architect) with:
+   - Role: "Critical Analyst"
+   - Question: "Review this requirements.md and design.md as a devil's advocate. Find: missing edge cases, unstated assumptions, scope creep risks, and requirements that are untestable. Be specific — cite the exact requirement or design section."
+   - Context: The full requirements.md and design.md content
+
+3. **Revision**: After both consultants respond, dispatch spec-planner agent again with:
+   - The original requirements.md and design.md
+   - Architect feedback
+   - Critic feedback
+   - Instruction: "Revise requirements.md and design.md to address the feedback. Do NOT ask questions — make the best judgment call for each concern. Add an `## Architect Review Notes` and `## Critic Review Notes` appendix to design.md summarizing what was addressed."
+
+The output is the same requirements.md + design.md — downstream contracts are unchanged. The human gate in Step 6 still applies.
 
 ### Step 6: MANDATORY HUMAN GATE
 
@@ -147,9 +173,35 @@ After tasks are written:
 3. Record the current git SHA in `state.json.reproducibility.git_sha_start`
 4. **Populate `referenced_codebase_files`**: Scan design.md and tasks.md for all codebase file paths referenced (in `Files:` fields, import paths, interface source locations). Record these in `state.json.reproducibility.referenced_codebase_files`. This list is used for drift detection — if another spec modifies any of these files before this spec executes, the spec is stale and needs re-validation.
 
-### Step 9: Parse init.sh
+### Step 9: Auto-Detect and Parse init.sh
 
-Read init.sh in the spec directory. If quality gate commands are defined (lint_cmd, typecheck_cmd, test_cmd), update state.json `quality_gates` section. Also read budget_cap and human_checkpoint_interval if defined.
+1. **Auto-detect project type** (if init.sh has no gates configured):
+
+   Check for project manifests and populate init.sh quality gates automatically:
+
+   | Manifest | Project Type | Default Gates |
+   |----------|-------------|---------------|
+   | `package.json` | Node.js | lint: `npm run lint` (if script exists), typecheck: `npx tsc --noEmit` (if tsconfig.json exists), test: `npm test` (if script exists) |
+   | `pyproject.toml` / `setup.py` | Python | lint: `ruff check .` or `flake8`, typecheck: `mypy .` (if in deps), test: `pytest` (if in deps) |
+   | `Cargo.toml` | Rust | lint: `cargo clippy -- -D warnings`, typecheck: `cargo check`, test: `cargo test` |
+   | `go.mod` | Go | lint: `golangci-lint run` (if installed), typecheck: `go vet ./...`, test: `go test ./...` |
+
+   For Node.js projects, read `package.json` `scripts` object to verify which scripts actually exist before setting gates.
+
+   Show the user what was detected:
+   ```
+   Detected Node.js project (from package.json).
+   Auto-configured quality gates:
+     lint: npm run lint
+     typecheck: npx tsc --noEmit
+     test: npm test
+
+   Edit .claude/specs/<name>/init.sh to customize.
+   ```
+
+2. **Parse init.sh**: Read quality gate commands (supporting both `gates=()` array and legacy individual variables). Update state.json `quality_gates` section.
+
+3. **Read budget_cap and human_checkpoint_interval** if defined.
 
 ### Step 10: Summary
 
