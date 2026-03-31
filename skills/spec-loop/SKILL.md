@@ -268,6 +268,7 @@ you are violating this gate.
 
 7. **Run quality gates in diff mode** via Bash:
    - Capture the list of files changed in this batch: `git diff --name-only <pre-merge-SHA> HEAD`
+   - **Resolve gate commands**: Check `state.json.quality_gates.gates[]` first (new format: array of `"name:command"` entries). If empty or missing, fall back to legacy fields (`lint_cmd`, `typecheck_cmd`, `test_cmd`). Run each gate in order.
    - **Lint**: Run linter only on changed files if the linter supports file arguments. Otherwise run full lint but compare error count against `state.json.quality_gates.baseline_errors` — fail only if count increases.
    - **Type Check**: Run full typecheck (incremental if supported). If pre-existing errors exist, compare against baseline — fail only on NEW errors in changed files.
    - **Regression Test**: Run the full test suite. Pre-existing failures should be baselined.

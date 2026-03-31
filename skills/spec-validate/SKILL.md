@@ -31,6 +31,14 @@ If `spec-name` is omitted, auto-detect if only one spec exists.
 ## Workflow
 
 1. **Locate spec**: Find the spec directory in `.claude/specs/`. Validate the spec name.
+
+1.5 **Quick-mode check**: Read `state.json`. If `quick_mode` is `true`, skip full validation — quick specs have no requirements.md or design.md. Instead, validate only:
+   - tasks.md exists and has at least one `### T-` heading
+   - state.json parses as valid JSON with matching task IDs
+   - Quality gates are configured
+   Report: `"Quick-mode spec — limited validation. Tasks: N found, gates: [configured/not configured]."`
+   Skip to Step 7 (update validation state).
+
 2. **Drift detection**: Check if the codebase has changed under this spec since it was written:
    a. Read `state.json` for `reproducibility.git_sha_start` and `reproducibility.referenced_codebase_files`
    b. If `git_sha_start` is missing (older spec), fall back to `state.json.created_at` and use `git log --since="<created_at>" --diff-filter=M --name-only -- <referenced_files>` instead

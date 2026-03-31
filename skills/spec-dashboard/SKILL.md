@@ -40,16 +40,20 @@ No specs found in .claude/specs/. Run /spec <name> to create one.
 
 ### Step 2: Verify each spec's phases
 
-For each discovered spec at `.claude/specs/<name>/`, verify these phases by reading actual files and parsing content. Do NOT trust self-reported status — verify through code.
+For each discovered spec at `.claude/specs/<name>/`, first check if it's a quick-mode spec by reading `state.json` and checking `quick_mode`. Quick-mode specs skip Requirements and Design phases (show `⏭️` instead of ❌).
+
+Verify these phases by reading actual files and parsing content. Do NOT trust self-reported status — verify through code.
 
 #### 2a. Requirements
 
+- **Quick-mode**: Show `⏭️` (skipped by design)
 - Read `.claude/specs/<name>/requirements.md`
 - **PASS**: File exists AND contains at least one `### US-` heading (user story defined)
 - **FAIL**: File missing or no user stories found
 
 #### 2b. Design
 
+- **Quick-mode**: Show `⏭️` (skipped by design)
 - Read `.claude/specs/<name>/design.md`
 - **PASS**: File exists AND contains a `## Components` or `## Architecture` heading
 - **FAIL**: File missing or no architecture/components section found
