@@ -358,8 +358,30 @@ the grep verification below and confirmed non-zero imports. An agent saying
    - "The tests pass so it must be wired" — Tests run in isolation. Wired means reachable from the app entry point.
    - "I'll check wiring at the end" — Check per-wave. Deferring wiring checks is how 12 routes got marked wired:yes without being mounted.
 
-3. **Stuck detection**: If any task has `failures >= 3`:
-   - Log "AUTO-SKIP: T-X after 3 failures" to state.json audit log, mark task as "skipped", continue to next task.
+3. **Stuck detection with decomposition**: If any task has `failures >= 3`:
+
+   a. **Check if already decomposed**: If `state.json.tasks[T-X].decomposed` is true, this task was already split once. Skip it:
+      - Mark task as `"skipped"` in state.json
+      - Log: `"AUTO-SKIP: T-X after 3 failures (already decomposed once, no further splits)"`
+      - Continue to next task
+
+   b. **Attempt decomposition**: Dispatch spec-tasker agent with:
+      - The failed task's description, acceptance criteria, and error history from audit_log
+      - Instruction: "This task failed 3 times. Analyze the failure pattern and split it into 2-3 smaller, more focused tasks. Use new task IDs starting from T-{max_existing + 1}. Each sub-task must have non-overlapping Files. Mark the sub-tasks with `decomposed_from: T-X`."
+
+   c. **Apply decomposition**:
+      - Mark original task as `status: "decomposed"` in state.json
+      - Set `decomposed: true` on the original task
+      - Add new tasks to state.json with:
+        - `wave`: original task's wave + 1
+        - `dependencies`: same as original task's dependencies
+        - `decomposed_from`: original task ID
+      - Add new tasks to the appropriate wave in `state.json.waves`
+      - If the wave doesn't exist yet, create it
+      - Recompute integrity hash for tasks.md
+      - Log: `"DECOMPOSED: T-X split into T-Y, T-Z after 3 failures"`
+
+   d. **Decomposition limit**: Max 1 decomposition per original task. If a decomposed sub-task also fails 3 times, it gets skipped (step 3a).
 
 4. **Progress tracking**: If `tasks_since_checkpoint >= human_checkpoint_interval`:
    - Log progress summary to audit log. Reset counter. Continue execution without pausing.
