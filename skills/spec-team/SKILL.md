@@ -197,6 +197,7 @@ the grep verification below and confirmed non-zero imports. An agent saying
 #### Phase 5: Commit
 
 12. Update state.json: all wave tasks completed, tokens used, audit log
+12.5 **Run lifecycle hooks**: For each completed task in the wave, execute `hook_on_task_complete` with args: `<spec_name> <task_id> completed`. Best-effort.
 13. Commit with descriptive message listing all task IDs
 14. Move to next wave
 
