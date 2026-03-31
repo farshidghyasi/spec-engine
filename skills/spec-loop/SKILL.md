@@ -70,6 +70,24 @@ The loop runs fully autonomously with NO human pauses:
 
 **Self-test**: Before every tool call, check: "Am I about to call AskUserQuestion?" If yes, STOP — replace it with an autonomous decision + audit log entry.
 
+## Live Progress Streaming
+
+During execution, emit structured progress lines to keep the user informed of real-time status. These lines appear in the terminal output between agent dispatches.
+
+**Format:** `[HH:MM:SS] ▸ EVENT │ details`
+
+**Required emission points:**
+- Before each wave: `[12:34:56] ▸ Wave 2/4 │ 3 pending tasks`
+- Before each task dispatch: `[12:34:57] ▸ T-5 implementing │ auth-middleware.ts`
+- After each task completes: `[12:35:12] ▸ T-5 completed │ 5/8 tasks done`
+- After each quality gate: `[12:35:15] ▸ lint ✓ │ typecheck ✓ │ test ✓`
+- After each wave: `[12:35:20] ▸ Wave 2/4 complete`
+- On completion: `[12:40:00] ▸ COMPLETE │ 8/8 tasks │ ~64k tokens`
+
+Also append each progress line to `.claude/specs/<name>/progress.log` for later review.
+
+Emit these lines as plain text output between tool calls — they are displayed directly to the user.
+
 ## Rationalization Prevention
 
 Every step below is mandatory. You WILL be tempted to skip steps that seem unnecessary for "simple" waves. This table exists because every rationalization below has caused real production failures.
@@ -120,6 +138,7 @@ For each wave (starting from `state.json.execution.current_wave`):
 1. Record the current git SHA as `pre_wave_sha` (for wave rollback if needed)
 2. **Append audit log entry**: `{ "event": "wave_started", "wave": N, "timestamp": "<ISO-8601>", "details": "Starting wave N with X pending tasks" }`
 3. Read state.json.waves[current_wave].tasks. Filter to tasks with status "pending".
+4. **Run lifecycle hook**: If `hook_on_wave_start` is configured in init.sh, execute it with args: `<spec_name> <wave_number>`. Best-effort — log any errors but do not halt execution.
 
 #### 2b: Pre-Parallel Setup
 
@@ -428,6 +447,8 @@ Next steps:
   /spec-docs    — Generate documentation
   gh pr create --head spec/<name> --title "<name>"
 ```
+
+4. **Run lifecycle hook**: If `hook_on_spec_complete` is configured in init.sh, execute it with args: `<spec_name> <final_status>`. This one runs synchronously (wait for completion) since it's the last action.
 
 ## Interrupt/Resume
 
