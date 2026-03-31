@@ -186,7 +186,19 @@ the grep verification below and confirmed non-zero imports. An agent saying
 
 If Debugger fails twice on the same issue:
 - Mark task as failed in state.json (increment failures count)
-- If failures >= 3: log "AUTO-SKIP: T-X after 3 failures" to audit log, mark task as "skipped", continue to next task. Do NOT ask the user.
+- If failures >= 3:
+
+  a. **Check if already decomposed**: If `state.json.tasks[T-X].decomposed` is true, skip it:
+     - Mark as `"skipped"`, log `"AUTO-SKIP: T-X after 3 failures (already decomposed)"`
+
+  b. **Attempt decomposition**: Dispatch spec-tasker agent with:
+     - Failed task description, acceptance criteria, error history
+     - Instruction: "Split into 2-3 smaller tasks with new IDs starting from T-{max + 1}. Each sub-task must have non-overlapping Files. Set `decomposed_from: T-X`."
+
+  c. **Apply**: Mark original as `status: "decomposed"`, `decomposed: true`. Add new tasks at wave + 1. Recompute integrity. Log decomposition.
+
+  d. **Limit**: Max 1 decomposition per original task. Sub-task failures → skip.
+
 - Otherwise: move to next task, come back later
 
 ## Completion
