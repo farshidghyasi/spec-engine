@@ -2,6 +2,7 @@
   "version": 1,
   "spec_name": "{{SPEC_NAME}}",
   "created_at": "{{ISO_TIMESTAMP}}",
+  "quick_mode": false,
 
   "integrity": {
     "requirements_sha256": "",
@@ -42,6 +43,7 @@
   },
 
   "quality_gates": {
+    "gates": [],
     "lint_cmd": null,
     "typecheck_cmd": null,
     "test_cmd": null,
