@@ -137,10 +137,11 @@ Run commands from `state.json.parallel.post_merge_commands` (lock file regen, co
 After all implementers complete (and worktrees are merged), run quality gates in **diff mode**:
 
 1. Capture changed files: `git diff --name-only <pre_wave_sha> HEAD`
-2. **Lint** (if configured): Run linter on changed files only if supported, otherwise run full lint and compare error count against `state.json.quality_gates.baseline_errors` — fail only if count increases
-3. **Type Check** (if configured): Run `state.json.quality_gates.typecheck_cmd`. If pre-existing errors exist, compare against baseline — fail only on NEW errors in changed files
-4. **Regression Test** (if configured): Run `state.json.quality_gates.test_cmd` — pre-existing failures should be baselined
-5. **Secret Scan**: Only scan changed files for sensitive patterns
+2. **Resolve gate commands**: Check `state.json.quality_gates.gates[]` first (new format: array of `"name:command"` entries). If empty or missing, fall back to legacy fields (`lint_cmd`, `typecheck_cmd`, `test_cmd`). Run each gate in order.
+3. **Lint** (if configured): Run linter on changed files only if supported, otherwise run full lint and compare error count against `state.json.quality_gates.baseline_errors` — fail only if count increases
+4. **Type Check** (if configured): Run typecheck command. If pre-existing errors exist, compare against baseline — fail only on NEW errors in changed files
+5. **Regression Test** (if configured): Run test command — pre-existing failures should be baselined
+6. **Secret Scan**: Only scan changed files for sensitive patterns
 
 If any gate fails:
 - Spawn **spec-debugger** agent to fix the issue (max 2 retries per task)
