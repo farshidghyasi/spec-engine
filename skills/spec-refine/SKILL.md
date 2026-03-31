@@ -67,6 +67,32 @@ Before applying any changes:
 
 Recompute SHA256 hashes for all modified spec files. Update state.json.
 
+### Step 4.5: Show Spec Diff
+
+After changes are applied and before the change log:
+
+1. Run `git diff -- .claude/specs/<name>/requirements.md .claude/specs/<name>/design.md .claude/specs/<name>/tasks.md` to capture what changed
+2. Present the diff to the user in a code block:
+
+   ```
+   ## Spec Changes
+
+   ```diff
+   --- a/.claude/specs/auth-system/requirements.md
+   +++ b/.claude/specs/auth-system/requirements.md
+   @@ -45,6 +45,12 @@
+    ### US-3: User profile editing
+   +
+   +#### Acceptance Criteria (EARS Notation)
+   +
+   +1. WHEN user submits profile update with valid phone number
+   +   THE SYSTEM SHALL save the phone number and send verification SMS
+   ```
+
+   This makes it easy to see exactly what the refine operation changed, especially when multiple requirements and design components are affected.
+
+**Note:** If git is not available or the spec files aren't tracked, skip this step silently.
+
 ### Step 5: Add Change Log Entry
 
 Append to a `## Change Log` section at the bottom of requirements.md:
