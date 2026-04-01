@@ -32,6 +32,7 @@ Run user acceptance testing to formally verify the implementation satisfies all 
       ```
    c. If **zero imports found**: Flag in a wiring report. "File exists" ≠ "file is used."
    d. Include the wiring report in the acceptor's input so it can factor this into its assessment.
+   e. Also read `state.json` for `reproducibility.git_sha_start` and include it in the acceptor's input: "git_sha_start: <value or null>" — the acceptor uses this value in Step 2.5 for stale reference checking.
 
    This audit exists because the first acceptance pass in a real run missed 5 unwired components that existed as files but had zero imports.
 

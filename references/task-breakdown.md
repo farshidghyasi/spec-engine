@@ -8,6 +8,7 @@ Each task must have:
 - **Status**: pending | in_progress | completed
 - **Wave**: Integer assigned by topological sort (0 = no dependencies)
 - **Wired**: pending | yes | n/a (tracks whether code is connected to the application)
+- **Deprecates**: Optional field declaring schema changes (field renames, deletions, type changes)
 - **Dependencies**: List of task IDs this task depends on
 - **Covers**: Which user story/acceptance criteria this implements
 - **Files**: List of files this task will create or modify (enables parallel execution)
@@ -24,6 +25,18 @@ Rules:
 - No two tasks in the same wave should list the same file
 - Shared integration files (routers, navigation) go to the last task in the wave that needs them
 - Each task owns its own test files
+
+### Deprecates Field
+
+Optional task metadata that declares schema changes. Required when a task renames, deletes, or changes the type of a shared field.
+
+Formats:
+- Rename: `Deprecates: <type>.<oldField> -> <type>.<newField>`
+- Deletion: `Deprecates: <type>.<oldField> -> [removed]`
+- Type change: `Deprecates: <type>.<field> (<oldType> -> <newType>)`
+- Multiple: one entry per line, each following one of the 3 formats above
+
+When one or more tasks contain `Deprecates` fields (value is not `none`), the tasker MUST auto-generate a final-wave sweep task whose `Files` field is populated from a grep of the old field names.
 
 ## Wave Assignment (Topological Sort)
 

@@ -41,6 +41,20 @@ For each acceptance criterion:
 - Are there orphan tasks (tasks not linked to any requirement)?
 - Are there unimplemented requirements (criteria with no task)?
 
+### Step 2.5: Stale Reference Check
+
+1. Read `state.json` for `reproducibility.git_sha_start`. If missing or null, skip this step and note in the report: "Stale reference check skipped: no git_sha_start baseline"
+2. Run `git diff --name-only <git_sha_start>..HEAD` to identify all files changed since the spec began
+3. For each changed file that is a type definition, schema file, interface file, or migration file, parse the git diff (`git diff <git_sha_start>..HEAD -- <file>`) for removed and added field/column definitions (heuristic: lines starting with `-` or `+` that contain field-like patterns)
+4. Treat a removed field name with a corresponding added field name in the same file as a rename; the removed name is the deprecated old field
+5. For each old field name identified from the diff, use Grep to search the entire codebase for surviving references
+6. Collect all surviving references with file path and line number
+7. If surviving references found: flag each as a failure in the "Stale References" section of the acceptance report
+8. If no surviving references found: note "No stale references detected" in the "Stale References" section
+9. THE SYSTEM SHALL NOT mark the implementation as ACCEPTED if any stale references to deprecated field names survive in the codebase
+
+**Heuristic note**: git diff shows line-level changes, not semantic renames. If a type file has a removed field and an added field in the same diff hunk, treat the removed name as the old field name for grep purposes.
+
 ### Step 3: Verify Non-Functional Requirements
 
 Focus on what the tester and reviewer do not cover:
@@ -71,6 +85,9 @@ Write `acceptance.md` to the spec directory:
 - Tasks completed and wired: X
 - Tasks completed but NOT wired: X (these need wiring!)
 - Tasks wired but NOT verified: X (these need testing!)
+
+### Stale References
+[Result of Step 2.5: "No stale references detected", "Stale reference check skipped: no git_sha_start baseline", or a list of surviving references each with file path and line number]
 
 ### Gaps Found
 [Unimplemented criteria, unverified tasks, unwired tasks, orphan tasks]

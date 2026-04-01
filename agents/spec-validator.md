@@ -82,6 +82,31 @@ Verify that spec documents reference real code, not guessed interfaces:
 - [ ] **Prose-code count consistency**: For any task description that states a count (e.g., "add 11 keys"), verify the count matches any accompanying code block. Flag as WARNING if counts don't match.
 - [ ] **Function signature accuracy**: For every function call example in task descriptions, verify the actual function signature matches. Flag as ERROR if parameters are wrong.
 
+### 7. Deprecated Field Detection
+
+- [ ] Parse all `Deprecates` fields from tasks.md (skip tasks with `Deprecates: none` or no `Deprecates` field)
+- [ ] For each deprecated old field name extracted from `Deprecates` entries, use Grep to search the codebase for references to that name
+- [ ] Collect the union of all `Files` arrays from every task in tasks.md as the "spec-covered set"
+- [ ] IF any grep hit falls in a file NOT in the spec-covered set AND no sweep task's `Files` array covers that file: report **ERROR**: "Deprecated field `<oldFieldName>` has N uncovered reference(s) in: [file list]"
+- [ ] IF grep hits fall only in files that ARE in the spec-covered set or the sweep task's `Files` array: report no error for that field
+- [ ] IF grep finds zero references to a deprecated old field name anywhere in the codebase: report no error for that field
+- [ ] FOR EACH task whose description or title mentions modifying a shared type, DB column, interface field, or schema definition AND that task lacks a `Deprecates` field (or has `Deprecates: none`): report **WARNING**: "Task T-X modifies shared types but has no Deprecates field"
+- [ ] THE SYSTEM SHALL NOT report an ERROR for the absence of `Deprecates` fields — only WARNING — to maintain backward compatibility
+
+### 8. Enforceable Lessons
+
+- [ ] If `.claude/specs/lessons.json` exists, parse it for entries with `"enforceable": true`
+- [ ] For each enforceable lesson, look up the `"check"` value in the check registry below
+- [ ] IF the check name exists in the registry: execute the named check and report the result at WARNING severity (ERROR if `--strict-lessons` flag is set)
+- [ ] IF the check name does NOT exist in the registry: report **WARNING**: "Enforceable lesson references unknown check: <check_name>"
+- [ ] IF a lesson entry lacks the `enforceable` field or has `"enforceable": false`: treat it as advisory only (no automated check)
+
+#### Check Registry
+
+| Check Name | Logic |
+|-----------|-------|
+| `grep_for_old_field_references` | Same logic as Section 7: parse `Deprecates` fields from tasks.md, grep codebase for each old field name, report uncovered references |
+
 ## Severity Rubric
 
 Severity is not a judgment call. Use these fixed rules.
@@ -98,12 +123,14 @@ Severity is not a judgment call. Use these fixed rules.
 - Missing dependency — a package, file, or type is referenced but never created/installed
 - API schema contradicts the type definitions in the codebase
 - Formula produces different numeric results across documents
+- Deprecated field has uncovered references outside spec file boundaries and no sweep task covers them
 
 ### WARNING (everything else worth reporting)
 
 - Naming concerns, missing annotations, version pin suggestions
 - Ambiguous wording, imperfect test mocks, prose-only coverage references
 - Task missing error-path acceptance criterion (quality gap, not structural)
+- Task modifies shared types but has no Deprecates field
 
 ### Not reportable
 
@@ -127,6 +154,8 @@ Produce a validation report using this exact structure:
 - Tasks: X issues (Y errors, Z warnings)
 - Cross-Document: X issues (Y errors, Z warnings)
 - Codebase Accuracy: X issues (Y errors, Z warnings)
+- Deprecated Field Detection: X issues (Y errors, Z warnings)
+- Enforceable Lessons: X issues (Y errors, Z warnings)
 - **Overall: PASS / FAIL**
 
 ### Issues

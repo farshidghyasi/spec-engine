@@ -86,6 +86,17 @@ If `.claude/specs/lessons.json` exists:
 
 4. If `--strict-lessons` flag is provided, promote lesson-derived rules to ERROR severity.
 
+5. **Handle enforceable lessons**: After processing pattern-based rules, also extract entries with `"enforceable": true` from lessons.json. For each enforceable lesson, include the following in the validator agent prompt:
+
+   ```
+   ## Enforceable Lesson Checks
+   The following checks are marked enforceable in lessons.json. Run each using the check registry in Section 8 of your validation checklist.
+
+   - Check: <check_name> (from lesson: "<lesson text>", severity: <severity>)
+   ```
+
+   If `--strict-lessons` is set, include the note: "Run enforceable checks at ERROR severity."
+
 **Note:** Lesson-derived rules are pattern-matched text checks, not arbitrary code execution. Each rule checks for the presence or absence of specific patterns in spec file content.
 
 4. **Delegate to spec-validator agent**: Use the Agent tool to spawn the spec-validator agent with:

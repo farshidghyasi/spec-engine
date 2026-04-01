@@ -67,11 +67,23 @@ Write `retro.md` to the spec directory with metrics and analysis.
       "category": "requirements|design|implementation|testing",
       "lesson": "Specific, actionable lesson",
       "source": "retro|debugging|review",
-      "severity": "high|medium|low"
+      "severity": "high|medium|low",
+      "enforceable": false,
+      "check": null
     }
   ]
 }
 ```
+
+The `enforceable` and `check` fields are optional and default to `false` and `null` respectively when absent. Existing lessons.json files without these fields are processed without errors.
+
+When writing a lesson about deprecated fields, stale references, or schema change blast radius, set `"enforceable": true` and `"check": "grep_for_old_field_references"`. This instructs the validator to automatically re-check for the pattern on future runs.
+
+#### Known Checks
+
+| Check Name | Description |
+|-----------|-------------|
+| `grep_for_old_field_references` | Greps for old field names from `Deprecates` entries in tasks.md; reports uncovered references |
 
 If lessons.json already exists, APPEND to the lessons array. Do NOT overwrite existing lessons.
 

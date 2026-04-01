@@ -69,6 +69,11 @@ Each task MUST have:
 - **Wire into**: The file path where this task's output must be imported/registered. Required for all tasks that create components, routes, services, or middleware. Set to `n/a` for setup/config/infra tasks that don't produce importable exports.
   - Examples: `Wire into: src/app.tsx (router)`, `Wire into: src/routes/index.ts`, `Wire into: src/store/index.ts`
   - This prevents orphaned files — agents create components but forget to import them. By declaring the wiring target upfront, the implementer knows exactly where to add the import, and spec-loop can verify it.
+- **Deprecates**: Optional. Declares schema changes this task makes. Use `none` if not applicable. Formats:
+  - Rename: `Deprecates: <type>.<oldField> -> <type>.<newField>`
+  - Deletion: `Deprecates: <type>.<oldField> -> [removed]`
+  - Type change: `Deprecates: <type>.<field> (<oldType> -> <newType>)`
+  - Multiple changes: one `Deprecates` entry per line, each following one of the three formats above
 - **Dependencies**: Explicit task IDs. Only declare truly necessary dependencies.
 - **Covers**: Which US-X / AC this task implements
 - **Files**: List of files this task will create or modify (see File Ownership below). **Must include the "Wire into" target file** so that the implementer owns the wiring change.
@@ -87,6 +92,20 @@ If a task modifies an existing function's signature (adding/removing parameters,
 4. ALL known caller files added to the task's Files array
 
 If the caller list might be incomplete, add to the description: "Run grep before implementing to discover all callers. Add any unlisted caller files to your scope and update them."
+
+## Sweep Task Generation Rule
+
+After writing all tasks, scan tasks.md for any task that has a `Deprecates` field with a value other than `none`.
+
+IF one or more tasks contain `Deprecates` fields (value is not `none`):
+1. Auto-generate a final-wave sweep task (use the next available task ID, e.g. T-SWEEP or T-N) in the Phase 3: Integration section
+2. Set the sweep task's `Dependencies` to include ALL task IDs that contain `Deprecates` fields
+3. Set the sweep task's `Wave` to (max wave of all Deprecates-bearing tasks) + 1
+4. For each deprecated old field name extracted from all `Deprecates` entries, grep the codebase for occurrences and populate the sweep task's `Files` field with all matching file paths
+5. The sweep task description MUST instruct the agent to: re-grep at execution time (files may have shifted since spec creation), update all references to use the new field name or remove the field, and verify no references remain after updating
+6. The sweep task MUST have `Deprecates: none` to prevent recursive sweep generation
+
+IF no tasks contain `Deprecates` fields with values other than `none`: do NOT generate a sweep task.
 
 ## Wave Assignment
 
@@ -222,6 +241,12 @@ After writing tasks.md, verify that the state.json update will include:
 - Correct wave number for each task (matching the `Wave:` field in tasks.md)
 - Correct files array for each task (matching the `Files:` field in tasks.md)
 - No task IDs in state.json that don't exist in tasks.md
+
+### Check 7: Deprecates Field Completeness
+For every task whose description mentions modifying a shared type, DB column, interface field, or schema definition:
+- Verify the task has a `Deprecates` field
+- If the task renames, deletes, or changes the type of a field and lacks a `Deprecates` entry, add one
+- If no schema change is made, `Deprecates: none` is correct and sufficient
 
 ## Output
 

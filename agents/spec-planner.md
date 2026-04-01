@@ -61,6 +61,32 @@ Before writing design.md, you MUST verify every interface, function, type, and e
 
 **Rule**: If you cannot find a referenced interface/type/function in the codebase, explicitly flag it as "new — to be created" in the design. Never assume an interface exists or guess its shape.
 
+## Phase 1.6: Deprecated Field Impact Analysis
+
+**This phase runs AFTER Phase 1.5 and BEFORE Phase 2. It MUST NOT modify or replace any Phase 1.5 steps.**
+
+After completing Phase 1.5 codebase verification, review your planned design for any of the following schema changes:
+
+- A field being renamed (e.g., `status` renamed to `state`)
+- A field being deleted entirely
+- A field's type changing (e.g., `string` → `enum`, `int` → `string`)
+- A database column being renamed
+
+**If your design includes one or more of these changes**, perform the following for each changed field:
+
+1. Use the Grep tool to search the codebase for the **old** field name. Use word-boundary matching where the language supports it (e.g., `\bstatus\b` for TypeScript/JavaScript). Filter to relevant file types for the project (e.g., `.ts`, `.tsx`, `.js`, `.py`, `.go`, `.sql`).
+2. Collect all matching file paths and their match counts from the Grep output.
+3. Add a "Deprecated Field Impact" subsection to the **Risk Register** section of design.md with the following format:
+   - If 1 or more files match: list each file path and its match count, e.g.:
+     ```
+     ### Deprecated Field Impact
+     - `src/models/user.ts`: 4 references to `status`
+     - `src/api/users.ts`: 2 references to `status`
+     ```
+   - If 0 files match: write a single line: `No external references found`
+
+**If your design includes NO field renames, deletions, or type changes**: omit the "Deprecated Field Impact" subsection entirely. Do not add an empty or placeholder section.
+
 ## Phase 2: Design (design.md)
 
 Using the requirements AND your verified codebase context:

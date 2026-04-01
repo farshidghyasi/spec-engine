@@ -20,6 +20,7 @@
 - **Status**: pending
 - **Wave**: 0
 - **Wired**: pending
+- **Deprecates**: none
 - **Dependencies**: none
 - **Covers**: US-1
 - **Files**: {{files_to_create_or_modify}}
@@ -37,6 +38,7 @@
 - **Status**: pending
 - **Wave**: 1
 - **Wired**: pending
+- **Deprecates**: none
 - **Dependencies**: T-1
 - **Covers**: US-1
 - **Files**: {{files_to_create_or_modify}}
@@ -56,6 +58,7 @@
 - **Status**: pending
 - **Wave**: 2
 - **Wired**: pending
+- **Deprecates**: none
 - **Dependencies**: T-1, T-2
 - **Covers**: US-1, US-2
 - **Files**: {{files_to_create_or_modify}}
@@ -76,6 +79,7 @@
 - **Status**: pending
 - **Wave**: 3
 - **Wired**: pending
+- **Deprecates**: none
 - **Dependencies**: T-2, T-3
 - **Covers**: US-1, US-2
 - **Files**: {{files_to_create_or_modify}}
@@ -95,6 +99,7 @@
 - **Status**: pending
 - **Wave**: 4
 - **Wired**: pending
+- **Deprecates**: none
 - **Dependencies**: T-3, T-4
 - **Covers**: US-2
 - **Files**: {{files_to_create_or_modify}}
