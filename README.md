@@ -106,6 +106,23 @@ Wave 4: [T-8]                    Polish (sequential)
 
 Each task declares a `Files` field listing which files it will create or modify. The tasker ensures no two tasks in the same parallel group touch the same files.
 
+### Deprecated Field Detection
+
+When a spec changes shared types, DB columns, or renames/replaces fields, references outside the spec's file boundaries can get missed. spec-engine detects this at four pipeline stages:
+
+1. **Planner** — before writing design.md, greps for all consumers of any changed field and writes the blast radius to the risk section
+2. **Tasker** — tasks that rename, delete, or change field types declare it via a `Deprecates` metadata field. The tasker auto-generates a final-wave sweep task to update all references
+3. **Validator** — parses `Deprecates` fields, greps the codebase, and reports ERROR if references exist outside the spec's file boundaries with no sweep task covering them
+4. **Acceptor** — post-implementation, diffs actual changed files and greps for surviving stale references. Any survivor causes REJECT
+
+The `Deprecates` field supports three formats:
+
+```
+Rename:      Deprecates: <type>.<oldField> -> <type>.<newField>
+Deletion:    Deprecates: <type>.<oldField> -> [removed]
+Type change: Deprecates: <type>.<field> (<oldType> -> <newType>)
+```
+
 ### Quality Gates
 
 After every implementation iteration, four automated gates run:
@@ -131,8 +148,8 @@ Failure triggers a tiered recovery: Debugger retry (2x) -> Task rollback -> Wave
 
 `/spec-validate` runs the spec-validator agent against a fixed severity rubric — not subjective judgment. Issues are classified by enumerated rules:
 
-- **ERROR** (blocks implementation): requirement with zero task coverage, circular DAG dependencies, state.json/tasks.md ID mismatches, exact value contradictions between documents, missing dependencies, API schema vs codebase type mismatches
-- **WARNING** (reported, non-blocking): naming concerns, missing annotations, ambiguous wording, missing error-path ACs
+- **ERROR** (blocks implementation): requirement with zero task coverage, circular DAG dependencies, state.json/tasks.md ID mismatches, exact value contradictions between documents, missing dependencies, API schema vs codebase type mismatches, deprecated field with uncovered references outside spec file boundaries
+- **WARNING** (reported, non-blocking): naming concerns, missing annotations, ambiguous wording, missing error-path ACs, tasks that modify shared types without a `Deprecates` field
 
 Every reported issue must cite which rubric rule it matches (via a mandatory `Rule:` field). If the agent can't name a rule, the issue is not reportable. This makes validation behave like a linter (deterministic, stable output) rather than a reviewer (subjective, different every run).
 
@@ -231,6 +248,8 @@ Execution can be interrupted and resumed across sessions with zero re-orientatio
 ### Feedback Loop
 
 `/spec-retro` analyzes completed specs and writes structured lessons to `lessons.json`. Future `/spec` and `/spec-brainstorm` commands read these lessons and apply them. The system learns from its mistakes across specs.
+
+Lessons can be marked **enforceable** with `"enforceable": true` and a `"check"` field. Instead of just advising, the validator automatically executes the named check during `/spec-validate`. The first built-in check (`grep_for_old_field_references`) re-runs deprecated field detection from lesson history.
 
 ### Human Checkpoints
 
