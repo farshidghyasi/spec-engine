@@ -46,6 +46,47 @@ Using the provided user answers and codebase context:
 - One behavior per acceptance criterion
 - Every criterion must be deterministically testable
 
+## Security EARS Generation (Mandatory)
+
+After writing all user-requested acceptance criteria for every user story, detect which of the following feature categories apply based on the user's answers and feature description. Then generate the required security EARS criteria for each detected category. Tag each auto-generated criterion with `[security]` immediately after the AC number (e.g., `5. [security] THE SYSTEM SHALL NOT...`).
+
+### Category Detection and Required Criteria
+
+**API Endpoints** — detected when the feature includes REST endpoints, GraphQL resolvers, RPC methods, webhooks, or any HTTP handler:
+- `[security] THE SYSTEM SHALL NOT process requests to <endpoint> without first verifying a valid authentication token`
+- `[security] THE SYSTEM SHALL NOT accept more than <N> requests per minute per client IP to <endpoint>`
+- `[security] THE SYSTEM SHALL NOT process <endpoint> requests containing fields that exceed expected length or type constraints`
+
+**Data Storage** — detected when the feature writes to a database, file system, cache, or external store:
+- `[security] THE SYSTEM SHALL NOT store <sensitive field> in plaintext — encryption at rest is required`
+- `[security] THE SYSTEM SHALL NOT allow <role> to read or modify <resource> without explicit access control verification`
+
+**External Integrations** — detected when the feature calls external HTTP services, webhooks, or third-party APIs:
+- `[security] WHEN connecting to <external service> THE SYSTEM SHALL verify the TLS certificate is valid and not self-signed`
+- `[security] WHEN receiving data from <external service> THE SYSTEM SHALL verify the request signature before processing`
+
+**User Input Handling** — detected when the feature accepts text, file uploads, form fields, or query parameters from users:
+- `[security] THE SYSTEM SHALL NOT pass <input field> to <database/shell/template> without parameterization or escaping`
+- `[security] THE SYSTEM SHALL NOT render <input field> in <output context> without sanitization`
+
+### Baseline Criterion (always generated)
+
+Regardless of category detection, always append this Ubiquitous criterion as the final security AC in the most relevant user story:
+- `[security] THE SYSTEM SHALL NOT expose internal error details (stack traces, file paths, database error messages) in user-facing output`
+
+### Security Context Section
+
+At the bottom of requirements.md (after all user stories), append a `## Security Context` section:
+- List each detected category and the criteria it triggered
+- If no categories were detected, write: "No specific security categories detected; baseline security criteria applied"
+
+### Rules
+
+- There is NO opt-out mechanism for security criteria generation — always run this step
+- Do not duplicate criteria the user already stated explicitly
+- Each criterion uses EARS notation matching the patterns above (Negative or Event-Driven)
+- Adapt the placeholder values in angle brackets to the specific feature being specified
+
 ## Phase 1.5: Codebase Verification (MANDATORY before writing design)
 
 Before writing design.md, you MUST verify every interface, function, type, and endpoint you plan to reference. Do NOT write interfaces from memory or instructions alone.
