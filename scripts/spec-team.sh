@@ -102,7 +102,13 @@ echo "Project: $(pwd)"
 echo "Team: Implementer + Tester + Reviewer + Debugger"
 echo ""
 
+# snapshot state.json before team execution
+STATE_HASH_BEFORE=$(snapshot_state "$SPEC_DIR")
+
 claude $CLAUDE_FLAGS "Run /spec-team for spec '$SPEC_NAME' with max iterations $MAX_ITERATIONS."
+
+# verify state.json was updated during team execution
+verify_state_updated "$SPEC_DIR" "$STATE_HASH_BEFORE"
 
 echo ""
 echo "=== spec-team session ended ==="

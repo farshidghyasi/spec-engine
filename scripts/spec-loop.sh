@@ -74,7 +74,13 @@ fi
 
 echo "=== Starting spec-loop for: $SPEC_NAME (max $MAX_ITERATIONS iterations) ==="
 
+# snapshot state.json before loop
+STATE_HASH_BEFORE=$(snapshot_state "$SPEC_DIR")
+
 claude $CLAUDE_FLAGS "Run /spec-loop for spec '$SPEC_NAME' with max iterations $MAX_ITERATIONS."
+
+# verify state.json was updated during the loop
+verify_state_updated "$SPEC_DIR" "$STATE_HASH_BEFORE"
 
 echo ""
 echo "=== spec-loop session ended ==="
