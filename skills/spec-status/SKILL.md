@@ -55,6 +55,12 @@ Quality Gates:
   Regression: configured (npm test)
   Last regression pass: iteration 5
 
+Security:
+  Posture score: <state.json.security.posture_score or "Not audited">
+  Last audit:   <state.json.security.last_audit_date or "Never">
+  Threat model: <state.json.security.threat_model_status>
+  Findings:     CRITICAL <findings.critical> | HIGH <findings.high> | MEDIUM <findings.medium>
+
 Issues:
   T-4: 2 failures (stuck detection threshold: 3)
   No blocked tasks
@@ -65,6 +71,14 @@ Dependencies:
 Integrity: VALID (spec files match manifest)
 
 Next: Run /spec-exec or /spec-loop to continue implementation
+```
+
+## Security Display
+
+WHEN `state.json.security` does not exist, display:
+
+```
+Security: Not configured (run /spec-security-audit)
 ```
 
 ## Stuck Detection

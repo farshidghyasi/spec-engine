@@ -40,5 +40,8 @@ Run user acceptance testing to formally verify the implementation satisfies all 
    - requirements.md, design.md, tasks.md, state.json
    - Evidence from `evidence/` directory (screenshots, test results, review reports)
    - **Wiring audit results from step 2** (list of verified vs unverified imports)
+   - `state.json.security` section content (read from state.json; if the key is absent, pass `null`)
+   - List of existing `evidence/security-review-wave-*.md` files (Glob result)
+   - Content of `evidence/threat-model.md` if it exists (else pass `null`)
 4. Present the acceptance report to the user
 5. Ask via AskUserQuestion: "Accept this implementation?" / "Request changes"
