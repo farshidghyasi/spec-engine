@@ -152,6 +152,20 @@ you are violating this gate.
    - Reviewer writes one review report per task to `evidence/reviews/`
    - If any task REJECTED: Spawn Debugger with reviewer's feedback, then re-review (max 2 attempts)
 
+9b. **Parallel Security Review** — launch simultaneously with step 9 (both in the same message):
+   Spawn the **spec-security-reviewer** agent with:
+   - Changed file list: `git diff <pre_wave_sha>..HEAD --name-only`
+   - Task descriptions for the wave
+   - Spec name and wave number N
+
+   Enforce a 5-minute timeout. If exceeded: log partial results to audit log and continue.
+
+   After the security reviewer completes:
+   a. Read `evidence/security-review-wave-N.md` for findings
+   b. For any CRITICAL finding: dispatch spec-debugger (max 2 attempts). If unresolved after 2 attempts: append `{ "event": "unresolved_critical", "wave": N }` to audit log and add `Human-Review: required (unresolved critical security finding)` to the wave review report.
+   c. Append to audit log: `{ "event": "security_review", "wave": N, "findings": { "critical": X, "high": Y, "medium": Z } }`
+   d. Update `state.json.security.findings` by incrementing `critical`, `high`, `medium` counts from this wave's findings
+
 **Why review is sequential**: The Opus reviewer needs to see the full wave's changes together to catch cross-task inconsistencies that per-task review would miss. This is the consistency safety net for parallel execution.
 
 #### Phase 4: Post-Wave Verification

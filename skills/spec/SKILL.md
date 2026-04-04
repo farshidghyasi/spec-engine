@@ -85,7 +85,17 @@ Delegate to the **spec-planner** agent using the Agent tool. Pass ALL context:
 - Relevant lessons from lessons.json (if any)
 - Instruction: write both requirements.md and design.md, do NOT ask clarifying questions
 
-### Step 5.5: Consensus Deliberation (only if --consensus)
+### Step 5.5: Threat Model Dispatch (Always On)
+
+After the spec-planner completes (writing both requirements.md and design.md), dispatch the **spec-threat-modeler** agent:
+
+- Pass: spec directory path, content of requirements.md, content of design.md
+- The agent writes `evidence/threat-model.md`, injects `[threat-model]` criteria into requirements.md, and updates `state.json.security.threat_model_status`
+- On agent error or timeout: append `{ "event": "threat_model_failed", "reason": "<error>" }` to the audit log and continue to the next step without blocking
+
+There is NO opt-out for this step.
+
+### Step 5.6: Consensus Deliberation (only if --consensus)
 
 If `--consensus` flag was provided:
 
@@ -118,6 +128,7 @@ The output is the same requirements.md + design.md — downstream contracts are 
    - Data models
    - API contracts (if any)
    - Risks identified
+   - Threat model findings: if evidence/threat-model.md exists, show the "Injected Criteria" section. For each [threat-model] criterion shown, ask the user to approve or reject it. For each rejection: remove it from requirements.md and append { "event": "threat_model_criterion_rejected", "criterion": "<text>", "reason": "<user reason>" } to the audit log.
 3. Ask via AskUserQuestion: "Review the design above. How would you like to proceed?"
    - **Approve and continue to tasks** — proceed to Step 7
    - **Request changes** — go back to spec-planner with the user's feedback
