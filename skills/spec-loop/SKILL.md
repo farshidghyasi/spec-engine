@@ -354,6 +354,17 @@ After ALL parallel groups and sequential sub-batches in a wave complete:
    - **On failure**: Roll back the ENTIRE wave (`git reset --hard <pre-wave-SHA>`), log the failure, and re-run the wave's tasks SEQUENTIALLY instead of in parallel. This catches incompatibilities that parallel execution introduced.
    - **On success**: Continue to next checks.
 
+1b. **Security Review**: Spawn the **spec-security-reviewer** agent:
+   - Changed file list: `git diff <pre_wave_sha>..HEAD --name-only` (SHA recorded at wave start)
+   - Wave number N and spec name
+   - If the changed file list is empty: skip and append `{ "event": "security_review_skipped", "reason": "no changed files in wave N" }` to audit log. Do not spawn the agent.
+   - 5-minute timeout. On timeout: append partial results to audit log and continue.
+   - After completion:
+     a. For CRITICAL findings: dispatch spec-debugger (max 2 attempts). Unresolved after 2 attempts: append `{ "event": "unresolved_critical", "wave": N }` to audit log and flag for human review.
+     b. HIGH/MEDIUM findings: non-blocking, written to `evidence/security-review-wave-N.md` by the agent.
+     c. Append to audit log: `{ "event": "security_review", "wave": N, "findings": { "critical": X, "high": Y, "medium": Z } }`
+     d. Update `state.json.security.findings` by incrementing counts from this wave
+
 <HARD-GATE>
 Do NOT mark any task as completed or advance to the next wave until you have run
 the grep verification below and confirmed non-zero imports. An agent saying
