@@ -55,6 +55,29 @@ For each acceptance criterion:
 
 **Heuristic note**: git diff shows line-level changes, not semantic renames. If a type file has a removed field and an added field in the same diff hunk, treat the removed name as the old field name for grep purposes.
 
+### Step 2.6: Verify Security Criteria Coverage
+
+1. Read requirements.md and extract all acceptance criteria tagged `[security]` or `[threat-model]`. Count them as `security_criteria_count` and `threat_model_criteria_count` respectively.
+2. For each tagged criterion, check tasks.md for a task whose `Covers:` field or description references the criterion's AC number or a closely matching topic. Count tasks covering at least one tagged criterion as `covered_count`.
+3. Use Glob to find all `evidence/security-review-wave-*.md` files. Count them as `security_reviews_found`. Determine the count of completed waves from state.json (`execution.current_wave`). If `security_reviews_found < completed_wave_count`, flag as SECURITY EVIDENCE GAP.
+4. If `evidence/threat-model.md` exists: read its "Injected Criteria" section and verify every listed criterion appears in requirements.md with the `[threat-model]` tag. Flag any mismatches.
+5. Read `state.json.security` if it exists. Record `posture_score` and `findings` counts for the report.
+
+Add a "Security Verification" section to `acceptance.md` with this structure:
+
+### Security Verification
+- [security] criteria found: X
+- [threat-model] criteria found: Y
+- Criteria with implementing tasks: Z (of X + Y total)
+- Security review evidence: W waves covered (N completed waves)
+- Posture score: <value or "Not audited">
+- Threat model status: <pending or completed>
+- Result: PASS | FAIL | NOT AUDITED
+
+THE SYSTEM SHALL NOT mark the implementation ACCEPTED if:
+- Any `[security]` or `[threat-model]` criterion has no implementing task
+- Any completed wave is missing a `evidence/security-review-wave-N.md` file
+
 ### Step 3: Verify Non-Functional Requirements
 
 Focus on what the tester and reviewer do not cover:
