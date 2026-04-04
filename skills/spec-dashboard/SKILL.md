@@ -81,13 +81,14 @@ Verify these phases by reading actual files and parsing content. Do NOT trust se
 
 #### 2g. Accepted
 
-Check TWO sources (either is sufficient):
+Check THREE sources (any one is sufficient):
 
 1. Read `.claude/specs/<name>/state.json` — scan `audit_log` array for any entry where `action` contains `"accepted"` or `"accept"`
 2. Use Glob to check for acceptance evidence: `.claude/specs/<name>/evidence/*accept*`
+3. Use Glob to check for acceptance report: `.claude/specs/<name>/acceptance.md`
 
-- **PASS**: Audit log has acceptance entry OR acceptance evidence file exists
-- **FAIL**: Neither found
+- **PASS**: Audit log has acceptance entry OR acceptance evidence file exists OR `acceptance.md` exists
+- **FAIL**: None of the three sources found
 
 #### 2h. Docs
 
