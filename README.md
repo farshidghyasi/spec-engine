@@ -9,17 +9,21 @@ Inspired by [Kiro](https://kiro.dev)'s spec-driven development approach and buil
 ```
 /spec <name>  -->  Requirements (EARS)  -->  Design (Architecture)  -->  Tasks (DAG)
                         |                        |                        |
-                   Interactive              Human Gate               Wave Assignment
-                   gathering               (approve design)          (topological sort)
+                   Interactive              Threat Model             Wave Assignment
+                   gathering               (STRIDE analysis)         (topological sort)
+                   + auto security             |
+                     EARS criteria         Human Gate
+                                           (approve design +
+                                            threat findings)
                                                                          |
                                                                          v
-/spec-loop    -->  Wave Execution  -->  Quality Gates  -->  Commit  -->  Repeat
-                   (batch 2-3 tasks)    (lint, typecheck,
-                                         regression, secrets)
+/spec-loop    -->  Wave Execution  -->  Quality Gates  -->  Security  -->  Commit  -->  Repeat
+                   (batch 2-3 tasks)    (lint, typecheck,    Review
+                                         regression, secrets) (parallel)
                                                                          |
                                                                          v
-/spec-accept  -->  UAT  -->  /spec-docs  -->  /spec-release  -->  /spec-retro
-                                                                   (lessons.json)
+/spec-accept  -->  UAT  -->  /spec-security-audit  -->  /spec-docs  -->  /spec-release  -->  /spec-retro
+                                (15-phase CSO)           (security gate)    (lessons.json)
 ```
 
 ## Installation
@@ -45,8 +49,9 @@ claude plugins add /path/to/spec-engine
 
 # 4. After implementation
 /spec-accept                  # User acceptance testing
+/spec-security-audit          # 15-phase security audit (optional, recommended)
 /spec-docs                    # Generate documentation
-/spec-release --tag           # Release notes + git tag
+/spec-release --tag           # Release notes + git tag (blocked by CRITICAL findings)
 /spec-retro                   # Retrospective + lessons learned
 ```
 
@@ -59,13 +64,15 @@ claude plugins add /path/to/spec-engine
 | `/spec-refine` | Update requirements/design with change impact analysis |
 | `/spec-tasks` | Regenerate tasks from updated spec |
 | `/spec-validate` | Validate completeness and consistency |
-| `/spec-status` | Progress dashboard with cost and wiring health |
+| `/spec-status` | Progress dashboard with cost, wiring, and security health |
+| `/spec-dashboard` | Portfolio view of all specs with phase completion and security scores |
 | `/spec-exec` | Execute one iteration with quality gates |
 | `/spec-loop [--dry-run]` | Wave-based execution loop |
 | `/spec-team` | 4-agent team execution |
 | `/spec-accept` | User acceptance testing |
 | `/spec-docs` | Generate documentation |
-| `/spec-release` | Release notes and deployment checklist |
+| `/spec-security-audit` | 15-phase CSO security audit (daily or comprehensive mode) |
+| `/spec-release` | Release notes and deployment checklist (security gate) |
 | `/spec-verify --url <url>` | Post-deployment smoke tests |
 | `/spec-retro` | Retrospective with lessons feedback loop |
 | `/spec-import <file>` | Import PRD/RFC into spec format |
@@ -80,6 +87,9 @@ Each agent uses the model best suited to its task nature:
 |-------|-------|-----|
 | spec-planner | Opus | Deep reasoning for edge cases, security, architecture tradeoffs |
 | spec-reviewer | Opus | Security analysis, subtle bugs, cross-task consistency |
+| spec-security-reviewer | Opus | Read-only security-focused code review (parallel with reviewer) |
+| spec-threat-modeler | Opus | STRIDE analysis requires deep reasoning about attack vectors |
+| spec-security-auditor | Opus | 15-phase security audit requires judgment about vulnerability patterns |
 | spec-acceptor | Opus | Formal sign-off requires deep judgment about requirement coverage |
 | spec-consultant | Opus | Domain expertise benefits from deeper, more nuanced analysis |
 | spec-implementer | Sonnet | Fast code generation, parallelizable with file boundaries |
@@ -202,13 +212,14 @@ Running multiple AI agents in parallel introduces subtle failure modes. spec-eng
 
 ### Agent Teams (`/spec-team`)
 
-Four specialized agents with separation of concerns:
+Five specialized agents with separation of concerns:
 
 | Agent | Model | Role |
 |-------|-------|------|
 | Implementer | Sonnet | Writes code + persistent tests + wiring |
 | Tester | Sonnet | Checks wiring first, then verifies end-to-end + error paths |
-| Reviewer | Opus | Read-only security/quality/wiring review |
+| Reviewer | Opus | Read-only quality/architecture/wiring review |
+| Security Reviewer | Opus | Read-only security-focused review (parallel with Reviewer) |
 | Debugger | Sonnet | Fixes issues (max 2 retries, checks wiring first) |
 
 Agents communicate via lightweight handoff files (~200 tokens each) instead of full context duplication, reducing token usage by ~85%.
@@ -230,6 +241,7 @@ After every task completes, spec-loop runs mandatory verification enforced with 
 - Task statuses, wave assignments, and wiring status
 - Token usage and budget cap
 - Quality gate results
+- Security state (posture score, threat model status, findings by severity)
 - Integrity manifest (SHA256 of spec files)
 - Reproducibility data (model versions, git SHA)
 - Audit log (mandatory — written at every transition, not batched)
@@ -244,6 +256,84 @@ Execution can be interrupted and resumed across sessions with zero re-orientatio
 - **Input validation** — strict regex on spec names, URL validation
 - **Read-only reviewer** — the Opus reviewer cannot modify code, only read and report
 - **Audit logging** — all execution events are logged (enforced at every transition, not optional)
+
+### Integrated Security Pipeline
+
+Four always-on security capabilities are built into the spec-engine pipeline. All are automatic with no opt-out.
+
+#### 1. Automatic Security EARS Criteria
+
+The planner detects feature categories and auto-generates `[security]`-tagged EARS criteria:
+
+| Category | Detected When | Generated Criteria |
+|----------|--------------|-------------------|
+| API Endpoints | REST endpoints, GraphQL, webhooks, HTTP handlers | Auth enforcement, rate limiting, input validation |
+| Data Storage | Database, file system, cache, external store | Encryption at rest, access control |
+| External Integrations | External HTTP services, third-party APIs | TLS verification, signature verification |
+| User Input | Text, file uploads, form fields, query parameters | Injection prevention, input sanitization |
+
+A baseline Ubiquitous criterion ("SHALL NOT expose internal error details") is always generated. A `## Security Context` section documents which categories triggered which criteria.
+
+#### 2. Parallel Security Reviewer
+
+After each wave, a read-only security reviewer (Opus) runs **in parallel** with the existing code reviewer. It checks changed files for:
+
+- Injection patterns (SQL, command, template)
+- Authentication gaps (unprotected endpoints)
+- Secrets in code (AWS keys, API tokens, GitHub tokens)
+- Unsafe dynamic code evaluation (eval, Function constructor)
+- SSRF vectors (unvalidated URLs in HTTP calls)
+- Dependency vulnerabilities (unvetted imports)
+
+CRITICAL findings (requiring 2+ confirming grep patterns) dispatch the debugger automatically. The reviewer is strictly read-only (`tools: [Read, Glob, Grep]`) — the orchestrator persists its output files.
+
+#### 3. Automatic STRIDE Threat Modeling
+
+After the planner writes design.md (Step 5.5), the threat modeler performs STRIDE analysis:
+
+- **S**poofing, **T**ampering, **R**epudiation, **I**nformation Disclosure, **D**enial of Service, **E**levation of Privilege
+- Identifies trust boundaries between components
+- Enumerates attack surface (entry points, data stores, external integrations)
+- Injects `[threat-model]` EARS criteria (capped at 10) into requirements.md
+- Results shown at the human gate for per-criterion approve/reject
+
+#### 4. 15-Phase Security Audit (`/spec-security-audit`)
+
+A manual command that runs a comprehensive CSO audit scoped to files changed since the spec began:
+
+| Phase | Name | Checks |
+|-------|------|--------|
+| 0 | Stack Detection | Languages, frameworks, entry points |
+| 1 | Attack Surface Census | Endpoints, auth boundaries, upload handlers |
+| 2 | Secrets Archaeology | Git history for credential patterns |
+| 3 | Dependency Supply Chain | npm/pip/cargo audit, lockfile integrity |
+| 4 | CI/CD Pipeline Security | Unpinned Actions, script injection |
+| 5 | Infrastructure Shadow Surface | Docker, IaC misconfigurations |
+| 6 | Webhook and Integration Audit | Signature validation, TLS |
+| 7 | LLM/AI Security | Prompt injection, eval of LLM output |
+| 8 | Skill Supply Chain | Overly broad tool permissions |
+| 9 | OWASP Top 10 | A01-A10 pattern matching |
+| 10 | STRIDE Threat Modeling | Cross-reference with threat model |
+| 11 | Data Classification | PII, credentials, financial, health data |
+| 12 | False Positive Filtering | Confidence gate (8/10 daily, 2/10 comprehensive) |
+| 13 | Findings Report | Summary with trend comparison |
+| 14 | Save Report | evidence/security-audit.json |
+
+**Posture score**: `100 - (CRITICAL × 20) - (HIGH × 5) - (MEDIUM × 2)`, floor at 0. Displayed in `/spec-status` and `/spec-dashboard`.
+
+**Release gating**: `/spec-release` blocks if CRITICAL findings exist. Use `--force` to override with an audit trail.
+
+#### Security Agent Tool Constraints
+
+All security agents are read-only with respect to application source code:
+
+| Agent | Tools | Constraint |
+|-------|-------|-----------|
+| spec-security-reviewer | Read, Glob, Grep | No Write, Edit, or Bash |
+| spec-threat-modeler | Read, Write, Glob, Grep | HARD-GATE: Write limited to 3 spec-directory paths |
+| spec-security-auditor | Read, Glob, Grep, Bash | HARD-GATE: Bash limited to audit commands (git log, npm audit, etc.) |
+
+Findings never record actual credential values — only file paths, line numbers, and pattern descriptions. Any security agent crash or timeout is logged and the pipeline continues (graceful degradation).
 
 ### Feedback Loop
 
@@ -307,11 +397,15 @@ Script features:
   requirements.md      # EARS requirements with risk register
   design.md            # Architecture with traceability
   tasks.md             # DAG with wave assignments and wiring status
-  state.json           # Execution state (the brain)
+  state.json           # Execution state (the brain, includes security state)
   init.sh              # Project-specific commands
   lessons.json         # Shared feedback loop
   evidence/            # Screenshots, test results, reviews
+    threat-model.md    # STRIDE analysis (auto-generated)
+    security-review-wave-N.md  # Per-wave security findings
+    security-audit.json        # 15-phase audit report
   handoffs/            # Agent communication (team mode)
+    security-T-X-critical.md   # CRITICAL finding fix instructions
   docs/                # Generated documentation
   acceptance.md        # UAT report
   release.md           # Release notes
@@ -346,7 +440,7 @@ The direct predecessor is [spec-driven-plugin](https://github.com/habib0x0/spec-
 | **Task batching** | One task per iteration (`"Pick ONE task"`) | Wave-based DAG batching — 2-3 independent tasks per iteration, reducing total iterations 3-5x |
 | **State tracking** | `progress.md` — append-only markdown log (~4000+ tokens), parsed with awk | `state.json` — machine-readable (~200 tokens), structurally parsed, resumable across sessions |
 | **Completion detection** | `grep '<promise>COMPLETE</promise>'` in stdout | Structural check: all tasks in state.json have `status: completed` and `wired: yes\|n/a` |
-| **Quality gates** | None — relies on Claude to self-test | Automated lint + type check + regression test + secret scan after every iteration, with evidence persistence and file existence verification |
+| **Quality gates** | None — relies on Claude to self-test | Automated lint + type check + regression test + secret scan + security review after every iteration, with evidence persistence and file existence verification |
 | **Agent context (team mode)** | Full spec dumped into every agent's prompt (~6000 tokens each) | Handoff files (~200 tokens each) — ~85% token reduction |
 | **Wiring enforcement** | `Wired: yes/no` field, manually checked by tester | `Wire into:` target declared per task, grep-verified after each wave (not self-reported), acceptor runs independent wiring audit |
 | **Human checkpoints** | None after the requirements phase | Mandatory design gate + periodic task checkpoints + budget cap + stuck detection |

@@ -31,10 +31,11 @@ references/                 - Reference docs for agents
 | `/spec-dashboard` | Portfolio view of all specs with verified phase completion |
 | `/spec-exec` | Execute one iteration with quality gates |
 | `/spec-loop` | Wave-based loop with batching, cost controls, human checkpoints |
-| `/spec-team` | 4-agent team execution (Implementer + Tester + Reviewer + Debugger) |
+| `/spec-team` | 5-agent team execution (Implementer + Tester + Reviewer + Security Reviewer + Debugger) |
 | `/spec-accept` | User acceptance testing with traceability matrix |
+| `/spec-security-audit` | 15-phase CSO security audit (daily or comprehensive mode) |
 | `/spec-docs` | Generate documentation |
-| `/spec-release` | Release notes, changelog, deployment checklist |
+| `/spec-release` | Release notes, changelog, deployment checklist (security gate) |
 | `/spec-verify` | Post-deployment smoke tests |
 | `/spec-retro` | Retrospective with lessons.json feedback loop |
 | `/spec-import` | Import PRD/RFC/design doc into spec format |
@@ -47,6 +48,9 @@ Each agent uses the model best suited to its task nature:
 |-------|-------|-------|-----------|
 | spec-planner | Opus | Requirements + Design | Deep reasoning for edge cases, security, architecture tradeoffs |
 | spec-reviewer | Opus | Review | Security analysis, subtle bugs, cross-task consistency checking |
+| spec-security-reviewer | Opus | Review | Read-only security-focused code review, parallel with spec-reviewer |
+| spec-threat-modeler | Opus | Planning | STRIDE analysis requires deep reasoning about attack vectors |
+| spec-security-auditor | Opus | Audit | 15-phase CSO audit requires judgment about vulnerability patterns |
 | spec-acceptor | Opus | Acceptance | Formal sign-off requires deep judgment about requirement coverage |
 | spec-consultant | Opus | Brainstorming | Domain expertise benefits from deeper reasoning and nuanced analysis |
 | spec-tasker | Sonnet | Task breakdown | Fast, structured decomposition with file ownership assignment |
@@ -56,7 +60,7 @@ Each agent uses the model best suited to its task nature:
 | spec-documenter | Sonnet | Documentation | Doc generation from spec and code |
 | spec-validator | Sonnet | Validation | Checklist-based verification |
 
-**Principle**: Opus for judgment and reasoning (planning, reviewing, accepting, consulting). Sonnet for structured execution (implementing, testing, debugging, documenting).
+**Principle**: Opus for judgment and reasoning (planning, reviewing, security analysis, accepting, consulting). Sonnet for structured execution (implementing, testing, debugging, documenting).
 
 ## Key Concepts
 
@@ -70,7 +74,7 @@ All acceptance criteria use Easy Approach to Requirements Syntax with 6 patterns
 - **Feature-Specific**: WHERE [feature] WHEN [trigger] THE SYSTEM SHALL [behavior]
 
 ### state.json
-Machine-readable execution state (~200 tokens). Tracks: task statuses, wave assignments, wiring status, token usage, budget cap, quality gate results, integrity manifest, audit log.
+Machine-readable execution state (~200 tokens). Tracks: task statuses, wave assignments, wiring status, token usage, budget cap, quality gate results, security state (posture score, threat model status, findings), integrity manifest, audit log.
 
 ### Wired Tracking
 Every task tracks a `Wired` field (pending/yes/n/a) alongside its Status. This prevents the #1 failure mode: code that exists but isn't connected to the application. A task is only truly complete when Status=completed AND Wired=yes (or n/a for infra tasks). The tester refuses to test unwired code, the reviewer rejects it, and the acceptor flags it.
@@ -110,6 +114,12 @@ After each parallel agent completes: (1) auto-commit its work in the worktree, (
 - Secret-aware git staging
 - Strict spec name validation
 - Reviewer is strictly read-only (no Write, no Bash)
+- Security reviewer is read-only (Read, Glob, Grep only — no Write, Edit, or Bash)
+- Threat modeler Write is HARD-GATE constrained to 3 spec-directory paths only
+- Security auditor Bash is HARD-GATE constrained to read-only audit commands
+- Security findings never store credential values (file paths and line numbers only)
+- Security agent failures degrade gracefully (log + continue, never halt pipeline)
+- CRITICAL findings block `/spec-release` unless `--force` is used with audit trail
 
 ## Spec File Location
 
@@ -117,11 +127,15 @@ Specs are created in the target project at `.claude/specs/<feature-name>/`:
 - `requirements.md` - User stories with EARS acceptance criteria
 - `design.md` - Architecture with traceability annotations
 - `tasks.md` - Implementation tasks with wave assignments and wiring status
-- `state.json` - Machine-readable execution state
+- `state.json` - Machine-readable execution state (includes security state)
 - `init.sh` - Project-specific build/test/lint commands
 - `lessons.json` - Shared across specs, feedback loop
-- `evidence/` - Screenshots, test results, review reports
+- `evidence/` - Screenshots, test results, review reports, security evidence
+- `evidence/threat-model.md` - STRIDE analysis (auto-generated by threat modeler)
+- `evidence/security-review-wave-N.md` - Per-wave security findings
+- `evidence/security-audit.json` - 15-phase audit report
 - `handoffs/` - Agent-to-agent communication (team mode)
+- `handoffs/security-T-X-critical.md` - CRITICAL finding fix instructions
 
 ## CI/CD Scripts
 

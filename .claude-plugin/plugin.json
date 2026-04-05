@@ -1,6 +1,6 @@
 {
   "name": "spec-engine",
-  "version": "2.0.0",
+  "version": "2.2.0",
   "description": "Spec-driven development engine: structured requirements (EARS), architecture design, wave-based parallel task execution, quality gates, and full SDLC lifecycle. Includes quick mode, lifecycle hooks, consensus planning, and live progress streaming.",
   "author": {
     "name": "farshidghyasi"
