@@ -22,8 +22,9 @@ Inspired by [Kiro](https://kiro.dev)'s spec-driven development approach and buil
                                          regression, secrets) (parallel)
                                                                          |
                                                                          v
-/spec-accept  -->  UAT  -->  /spec-security-audit  -->  /spec-docs  -->  /spec-release  -->  /spec-retro
-                                (15-phase CSO)           (security gate)    (lessons.json)
+/spec-security-audit  -->  /spec-accept  -->  /spec-docs  -->  /spec-release  -->  /spec-retro
+  (15-phase CSO)             (UAT + security       (security gate)    (lessons.json)
+                               evidence check)
 ```
 
 ## Installation
@@ -48,8 +49,8 @@ claude plugins add /path/to/spec-engine
 /spec-team                    # 4-agent team (Implementer + Tester + Reviewer + Debugger)
 
 # 4. After implementation
-/spec-accept                  # User acceptance testing
-/spec-security-audit          # 15-phase security audit (optional, recommended)
+/spec-security-audit          # 15-phase security audit (must run before acceptance)
+/spec-accept                  # User acceptance testing (verifies security evidence)
 /spec-docs                    # Generate documentation
 /spec-release --tag           # Release notes + git tag (blocked by CRITICAL findings)
 /spec-retro                   # Retrospective + lessons learned

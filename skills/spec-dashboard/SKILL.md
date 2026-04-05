@@ -71,12 +71,13 @@ Verify these phases by reading actual files and parsing content. Do NOT trust se
 - **PASS**: `validation.status` equals `"pass"`
 - **FAIL**: `state.json` missing, no `validation` object, or `validation.status` is not `"pass"`
 
-#### 2e. Security (Sec column)
+#### 2e. Security Audit (Sec column)
 
 - Read `.claude/specs/<name>/state.json`
 - Parse the `security` object
-- **Display `--`**: If `security` key does not exist OR `security.posture_score` is null
-- **Display score**: If `security.posture_score` is a non-null integer, display the integer (e.g., `92`)
+- **PASS (display score)**: If `security.posture_score` is a non-null integer, display `✅ <score>` (e.g., `✅ 92`) — this means `/spec-security-audit` has been run
+- **FAIL (display ❌)**: If `security` key does not exist OR `security.posture_score` is null — this means the security audit has NOT been run yet
+- The Sec column is a **mandatory lifecycle check**: a spec should not be released without a security audit
 
 #### 2f. Execution
 
@@ -147,10 +148,10 @@ Display format:
 
 | Spec             | Req | Design | Tasks | Valid | Sec | Exec  | Accepted | Docs | Retro | Rel |
 |------------------|-----|--------|-------|-------|-----|-------|----------|------|-------|-----|
-| auth-system      | ✅  | ✅     | ✅    | ✅    | 92  | 10/10 | ✅       | ✅   | ✅    | ✅  |
-| payment-flow     | ✅  | ✅     | ✅    | ✅    | --  | 6/12  | ❌       | ❌   | ❌    | ❌  |
-| notification-svc | ✅  | ✅     | ❌    | ❌    | --  | —     | ❌       | ❌   | ❌    | ❌  |
-| search-feature   | ✅  | ❌     | ❌    | ❌    | --  | —     | ❌       | ❌   | ❌    | ❌  |
+| auth-system      | ✅  | ✅     | ✅    | ✅    | ✅ 92 | 10/10 | ✅       | ✅   | ✅    | ✅  |
+| payment-flow     | ✅  | ✅     | ✅    | ✅    | ❌    | 6/12  | ❌       | ❌   | ❌    | ❌  |
+| notification-svc | ✅  | ✅     | ❌    | ❌    | ❌    | —     | ❌       | ❌   | ❌    | ❌  |
+| search-feature   | ✅  | ❌     | ❌    | ❌    | ❌    | —     | ❌       | ❌   | ❌    | ❌  |
 
 ✅ = verified  ❌ = not done  ⚠️ = failed validation (--deep only)
 
