@@ -56,5 +56,16 @@
 
   "lessons_applied": [],
 
-  "audit_log": []
+  "audit_log": [],
+
+  "security": {
+    "posture_score": null,
+    "last_audit_date": null,
+    "threat_model_status": "pending",
+    "findings": {
+      "critical": 0,
+      "high": 0,
+      "medium": 0
+    }
+  }
 }
