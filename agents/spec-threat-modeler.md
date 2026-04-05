@@ -176,6 +176,18 @@ Write the updated `state.json` back to `${SPEC_DIR}/state.json`.
 
 ## Constraints
 
+<HARD-GATE>
+WRITE TOOL SCOPE — before every Write call, verify the target path matches one of these EXACTLY:
+1. `${SPEC_DIR}/evidence/threat-model.md`
+2. `${SPEC_DIR}/requirements.md`
+3. `${SPEC_DIR}/state.json`
+
+If the path does not match, DO NOT WRITE. You have ZERO authorization to write to source code,
+test files, configuration files, agent definitions, skill definitions, or any file outside
+the spec directory. This constraint exists because NF-4 requires that security agents cannot
+modify application code.
+</HARD-GATE>
+
 - Use the Write tool **only** for:
   1. `${SPEC_DIR}/evidence/threat-model.md` (create or overwrite)
   2. `${SPEC_DIR}/requirements.md` (append new criteria only — do not alter existing criteria)

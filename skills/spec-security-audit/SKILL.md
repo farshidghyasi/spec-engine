@@ -48,9 +48,14 @@ If the agent crashes or times out:
 - Display: "Security audit failed. Check state.json audit_log for details."
 - Do NOT block re-running.
 
-### Step 4: Handle Agent Completion
+### Step 4: Persist Agent Output
 
-Read `evidence/security-audit.json` and `state.json.security` after agent completes.
+The spec-security-auditor agent is read-only with respect to file writing (it has Bash for audit commands but no Write tool). After the agent completes:
+
+1. Extract the `AUDIT_REPORT_JSON` code block from the agent's response
+2. Write it to `${SPEC_DIR}/evidence/security-audit.json`
+3. Extract the `STATE_UPDATE_JSON` code block from the agent's response
+4. Read `${SPEC_DIR}/state.json`, merge the security state update, and write it back (read-modify-write)
 
 ### Step 5: Display Results
 

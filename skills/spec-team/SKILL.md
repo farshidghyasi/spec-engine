@@ -161,10 +161,11 @@ you are violating this gate.
    Enforce a 5-minute timeout. If exceeded: log partial results to audit log and continue.
 
    After the security reviewer completes:
-   a. Read `evidence/security-review-wave-N.md` for findings
-   b. For any CRITICAL finding: dispatch spec-debugger (max 2 attempts). If unresolved after 2 attempts: append `{ "event": "unresolved_critical", "wave": N }` to audit log and add `Human-Review: required (unresolved critical security finding)` to the wave review report.
-   c. Append to audit log: `{ "event": "security_review", "wave": N, "findings": { "critical": X, "high": Y, "medium": Z } }`
-   d. Update `state.json.security.findings` by incrementing `critical`, `high`, `medium` counts from this wave's findings
+   a. **Persist the reviewer's output**: The security reviewer is read-only (no Write tool). Extract the evidence content block and handoff content blocks from its response. Write `evidence/security-review-wave-N.md` and any `handoffs/security-T-X-critical.md` files on its behalf.
+   b. Read the persisted `evidence/security-review-wave-N.md` for findings.
+   c. For any CRITICAL finding: dispatch spec-debugger (max 2 attempts). If unresolved after 2 attempts: append `{ "event": "unresolved_critical", "wave": N }` to audit log and add `Human-Review: required (unresolved critical security finding)` to the wave review report.
+   d. Append to audit log: `{ "event": "security_review", "wave": N, "findings": { "critical": X, "high": Y, "medium": Z } }`
+   e. Update `state.json.security.findings` by incrementing `critical`, `high`, `medium` counts from this wave's findings
 
 **Why review is sequential**: The Opus reviewer needs to see the full wave's changes together to catch cross-task inconsistencies that per-task review would miss. This is the consistency safety net for parallel execution.
 

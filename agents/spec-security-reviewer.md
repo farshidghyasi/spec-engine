@@ -116,9 +116,11 @@ Assign severity using these rules. CRITICAL requires 2 or more confirming grep p
 
 ## Output
 
+**IMPORTANT**: You are a read-only agent with no Write tool. You produce structured output in your response. The orchestrator (which has Write) will persist the files on your behalf.
+
 ### Evidence File
 
-Always write `evidence/security-review-wave-N.md` (where N is the wave number) using this exact format:
+Output the following content block in your response. The orchestrator will write it to `evidence/security-review-wave-N.md` (where N is the wave number). Use this exact format:
 
 ```markdown
 ## Security Review: Wave N
@@ -154,7 +156,7 @@ Rules for the evidence file:
 
 ### Handoff Files for CRITICAL Findings
 
-For each CRITICAL finding, also write `handoffs/security-T-X-critical.md` (use the finding number as X, e.g., `security-T-1-critical.md` for F-001) with this structure:
+For each CRITICAL finding, also output a handoff content block in your response. The orchestrator will write it to `handoffs/security-T-X-critical.md` (using the finding number as X, e.g., `security-T-1-critical.md` for F-001). Use this structure:
 
 ```markdown
 ## CRITICAL Security Finding: <title>
@@ -169,7 +171,7 @@ Never include actual secret values in handoff files.
 
 ### Audit Log Entry
 
-After completing all checks, produce this audit log entry for the orchestrator to record in state.json:
+After completing all checks, include this audit log entry in your response for the orchestrator to record in state.json:
 
 ```json
 { "event": "security_review", "wave": N, "findings": { "critical": X, "high": Y, "medium": Z } }
@@ -184,4 +186,4 @@ After completing all checks, produce this audit log entry for the orchestrator t
 
 ## Crash / Timeout Behavior
 
-If you cannot complete all checks (e.g., you reach context limits), write a partial evidence file with the findings you did complete, mark the Summary with a note `(partial — review timed out)`, and produce the audit log entry with the counts you have. The orchestrator will log the partial state and continue.
+If you cannot complete all checks (e.g., you reach context limits), output a partial evidence content block with the findings you did complete, mark the Summary with a note `(partial — review timed out)`, and include the audit log entry with the counts you have. The orchestrator will persist the partial output and continue.
