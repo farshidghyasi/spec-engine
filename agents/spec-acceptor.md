@@ -31,13 +31,21 @@ For each user story in requirements.md, map every EARS acceptance criterion to:
 For each acceptance criterion:
 - Is there at least one completed task that implements it?
 - Is the implementing task wired (`Wired: yes` or `n/a`)? Tasks with `Wired: pending` are NOT done.
-- **MANDATORY: For every task with `Wired: yes`, grep-verify that the component is actually imported somewhere**:
+- **MANDATORY: For every task with `Wired: yes`, grep-verify that the component is actually imported AND used**:
   ```bash
-  # For each task's primary export:
+  # Step 1: Import check — is it imported anywhere?
   grep -r "import.*ExportName" --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" src/ | grep -v "<defining_file>"
   ```
   - If zero imports found outside the defining file: mark as **WIRING GAP** in the report, regardless of what state.json says.
   - "File exists" ≠ "file is used." A component with no imports is dead code.
+  ```bash
+  # Step 2: Render check (React/UI components only) — is it actually rendered?
+  grep -r "<ExportName" --include="*.tsx" --include="*.jsx" src/ | grep -v "<defining_file>"
+  # Also check non-JSX usage patterns (render props, dynamic rendering):
+  grep -r "ExportName" --include="*.tsx" --include="*.jsx" src/ | grep -v "import" | grep -v "<defining_file>"
+  ```
+  - For React/UI components: import without render = dead code. Mark as **RENDER GAP**.
+  - This catches the case where a component is imported but never appears in any JSX return statement (e.g., `EditableCell` imported but never used in a `<Table>` column definition).
 - Are there orphan tasks (tasks not linked to any requirement)?
 - Are there unimplemented requirements (criteria with no task)?
 

@@ -59,6 +59,17 @@ Before writing ANY task descriptions, you MUST verify every interface, type, fun
 - If an import path doesn't exist, flag it as ERROR and adjust the task to create it
 - If a function signature differs from design.md, use the actual signature
 
+## Threat-Model Criteria Mapping (MANDATORY)
+
+After codebase verification, before writing tasks:
+
+1. Grep `requirements.md` for all acceptance criteria tagged `[threat-model]`
+2. Each `[threat-model]` criterion MUST appear in at least one task's `Covers:` field
+3. If a threat criterion doesn't naturally fit an existing functional task, create a dedicated security task for it (e.g., "T-X: Implement rate limiting for [endpoint]")
+4. Security tasks follow normal wave assignment — they depend on the tasks that create the code they secure
+
+This prevents threat-model criteria from being injected into requirements but never decomposed into actionable work.
+
 ## Task Requirements
 
 Each task MUST have:
@@ -66,9 +77,14 @@ Each task MUST have:
 - **Status**: Always `pending` for new tasks
 - **Wave**: Computed by topological sort of dependency DAG (see below)
 - **Wired**: Always `pending` for new tasks (set to `yes` or `n/a` by implementer)
-- **Wire into**: The file path where this task's output must be imported/registered. Required for all tasks that create components, routes, services, or middleware. Set to `n/a` for setup/config/infra tasks that don't produce importable exports.
-  - Examples: `Wire into: src/app.tsx (router)`, `Wire into: src/routes/index.ts`, `Wire into: src/store/index.ts`
-  - This prevents orphaned files — agents create components but forget to import them. By declaring the wiring target upfront, the implementer knows exactly where to add the import, and spec-loop can verify it.
+- **Wire into**: The file path AND the exact wiring action. Required for all tasks that create components, routes, services, or middleware. Set to `n/a` for setup/config/infra tasks that don't produce importable exports.
+  - Format: `Wire into: <file path> — <import statement>; <registration/render action>`
+  - Examples:
+    - `Wire into: src/app.tsx — import { AuthProvider } from '@/providers/auth'; wrap <App> children with <AuthProvider>`
+    - `Wire into: src/routes/index.ts — import { userRoutes } from './users'; add to routeConfig array`
+    - `Wire into: src/store/index.ts — import { permissionSlice } from './slices/permissions'; add to combineReducers`
+  - This prevents orphaned files — agents create components but forget to import them. By declaring the wiring target upfront AND the exact action, the implementer knows precisely what to do, and spec-loop can verify it.
+  - **UI trigger rule**: Every UI component that requires a trigger (dialog, modal, drawer, popover, dropdown menu) MUST name its trigger in `Wire into`. Example: `Wire into: src/components/OrderRow.tsx — import { ConfirmDialog } from './ConfirmDialog'; render <ConfirmDialog> opened by Delete button onClick`
 - **Deprecates**: Optional. Declares schema changes this task makes. Use `none` if not applicable. Formats:
   - Rename: `Deprecates: <type>.<oldField> -> <type>.<newField>`
   - Deletion: `Deprecates: <type>.<oldField> -> [removed]`
@@ -207,9 +223,27 @@ This separation produces better results because:
 
 Target M-size tasks (80-200 lines of code, completable in one Claude session). Split anything larger. Batch XS/S tasks into the same wave.
 
+### Integration Point Cap
+
+**Max 5 integration points per task.** An integration point is any of:
+- An import added to an existing file
+- A route/endpoint registration
+- A provider/wrapper setup
+- A function call wiring task output into existing code
+- A UI component render in an existing parent
+
+Tasks with >5 integration points MUST be split into: (a) core implementation task, (b) dedicated wiring task. This prevents the failure mode where a large integration task misses the most fundamental connection because the agent is overwhelmed by the sheer number of changes.
+
+### Bootstrap Wiring Rule for New Dependencies
+
+If a task introduces a new service, provider, or dependency that other code will consume:
+1. The task MUST create a companion **bootstrap wiring task** (can be in the same wave if no file overlap, otherwise next wave)
+2. The bootstrap task: (a) imports the new service in all consumers, (b) passes it as a non-optional parameter (never `service?`), (c) verifies at least one call site uses it
+3. This prevents optional dependency patterns (`service?`) from silently degrading when wiring is incomplete
+
 ## Self-Validation Pass (MANDATORY before returning)
 
-After writing tasks.md but BEFORE updating state.json, run these 6 checks against your own output. Fix any failures inline — do not return with known errors.
+After writing tasks.md but BEFORE updating state.json, run these 9 checks against your own output. Fix any failures inline — do not return with known errors.
 
 ### Check 1: Interface Shape Accuracy
 For every type/interface referenced in a task description or code block, verify it matches your Verified Interfaces list from the Codebase Verification step. If you paraphrased or abbreviated a type shape, fix it to match the exact verified definition.
@@ -242,7 +276,16 @@ After writing tasks.md, verify that the state.json update will include:
 - Correct files array for each task (matching the `Files:` field in tasks.md)
 - No task IDs in state.json that don't exist in tasks.md
 
-### Check 7: Deprecates Field Completeness
+### Check 7: Threat-Model Coverage
+For every `[threat-model]` criterion in requirements.md:
+- Verify at least one task's `Covers:` field references it
+- If any `[threat-model]` criterion is uncovered, create a task for it and re-run wave assignment
+
+### Check 8: Integration Point Count
+For every task, count its integration points (imports added to existing files, route registrations, provider setups, function call wirings, UI renders in existing parents):
+- If any task has >5 integration points, split it into core + wiring tasks
+
+### Check 9: Deprecates Field Completeness
 For every task whose description mentions modifying a shared type, DB column, interface field, or schema definition:
 - Verify the task has a `Deprecates` field
 - If the task renames, deletes, or changes the type of a field and lacks a `Deprecates` entry, add one

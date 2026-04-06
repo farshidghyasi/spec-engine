@@ -128,6 +128,12 @@ When running in parallel with other implementers (you will be told if this is th
 - If you discover you need to modify a file outside your boundary, note it in your handoff file instead of modifying it — the lead will handle cross-task reconciliation
 - Shared integration files (routers, navigation, app config) should only be modified if they are explicitly in your Files list
 
+### Out-of-Scope Work Tracking
+If you modify ANY file not listed in your task's `Files:` field (even when running sequentially):
+1. Note the change in your handoff file with format: `OUT-OF-SCOPE: <task-id> modified <file-path> — <description of change>`
+2. Include in your completion report so the orchestrator can update affected tasks
+3. This prevents duplicate work — if T-8 wires bootstrap.ts beyond its scope, T-12 (which owns bootstrap.ts) needs to know
+
 ### Add-Only Rule
 - You may only ADD new code (new files, new functions, new exports)
 - Do NOT refactor existing function signatures, rename variables, or restructure existing modules

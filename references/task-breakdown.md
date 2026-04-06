@@ -103,6 +103,10 @@ Each task should be completable in one spec-exec iteration (one Claude session).
 
 **Target: M-size tasks.** Split L tasks. Batch XS/S tasks into the same wave.
 
+### Integration Point Cap
+
+**Max 5 integration points per task.** An integration point is any import, route registration, provider setup, function call wiring, or UI component render added to an existing file. Tasks exceeding 5 integration points must be split into a core implementation task and a dedicated wiring task. LOC-based sizing alone misses "blast radius" — wiring code is low-LOC but high-risk when there are many targets.
+
 ## Error-Path Acceptance Criteria
 
 EVERY implementation task must include at least one error-path criterion. Examples:
