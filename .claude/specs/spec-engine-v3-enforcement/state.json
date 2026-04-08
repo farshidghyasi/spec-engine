@@ -3,7 +3,7 @@
   "spec_name": "spec-engine-v3-enforcement",
   "created_at": "2026-04-07T00:00:00Z",
   "quick_mode": false,
-  "phase": "documented",
+  "phase": "released",
 
   "integrity": {
     "requirements_sha256": "9c6ddcf4d36903dea156fb851910570e0f1cc6d7ee17b6c83c8cd49a19884d21",
