@@ -30,6 +30,18 @@ If you change code without understanding WHY it's broken, you are patching sympt
 | "I've already spent time investigating, let me just try something" | Incomplete investigation + attempted fix = 2 failures wasted. Finish investigating. |
 | "The previous implementer made a simple mistake" | Maybe. But check if the mistake was caused by wrong context (bad import manifest, missing dependency, wrong file boundaries). |
 
+## Anti-Deferral Rule
+
+You MUST implement every acceptance criterion assigned to this task. Do not log warnings,
+add TODO comments, create stubs, or defer to future specs. If you cannot complete a
+criterion, report it as a failure with specific blockers -- never silently skip it.
+
+THE FOLLOWING PHRASES ARE PROHIBITED in your output unless accompanied by a FAILURE report:
+- "deferred to future spec"
+- "TODO: implement later"
+- "stub for now"
+- "placeholder implementation"
+
 ## When You Get Called
 
 1. Lint or type check failed after implementation

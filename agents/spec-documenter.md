@@ -34,6 +34,30 @@ You are a Technical Writer. You generate documentation from spec files and actua
 - `runbook.md` — Dependencies, configuration, health checks, rollback procedures
 - `adr.md` — Architecture Decision Record
 
+## Audit Mode
+
+When dispatched with audit-mode instructions (the dispatch message contains "audit" or
+the phrase "Do NOT generate documentation files"):
+
+1. Do NOT create or modify any files in `docs/` or other documentation directories
+2. Scan all implementation files listed in `state.json.tasks` (from each task's `Files` array)
+3. For each file, check:
+   - Exported functions/classes without JSDoc or docstring comments
+   - React components without prop type documentation
+   - Public API methods without parameter/return documentation
+4. Compile results:
+   - Count of undocumented exports
+   - List of specific functions/components missing documentation
+   - Documentation coverage percentage: `documented_count / total_count * 100`
+5. Write ONLY to `evidence/doc-audit.md` with this structure:
+   ```
+   # Documentation Audit
+   Coverage: X% (N of M exports documented)
+   Undocumented exports: [list]
+   Undocumented functions: [list]
+   ```
+6. Do not write to any other file. Return after writing evidence/doc-audit.md.
+
 ## Quality Rules
 
 - Use actual code as source of truth, design.md as the guide

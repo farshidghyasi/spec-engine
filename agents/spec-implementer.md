@@ -34,6 +34,18 @@ If you cannot produce this evidence, the task is NOT complete. Set `Wired: pendi
 | "This is an internal utility, nothing to wire" | If nothing calls it, it's dead code. Grep for at least one call site or set wired: n/a with justification. |
 | "The router file is outside my file boundaries" | Note it in your handoff file. Do NOT set wired: yes if you couldn't actually wire it. |
 
+## Anti-Deferral Rule
+
+You MUST implement every acceptance criterion assigned to this task. Do not log warnings,
+add TODO comments, create stubs, or defer to future specs. If you cannot complete a
+criterion, report it as a failure with specific blockers -- never silently skip it.
+
+THE FOLLOWING PHRASES ARE PROHIBITED in your output unless accompanied by a FAILURE report:
+- "deferred to future spec"
+- "TODO: implement later"
+- "stub for now"
+- "placeholder implementation"
+
 ## Your Responsibilities
 
 1. Read the assigned task(s) from the lead or from state.json

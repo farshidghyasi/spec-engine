@@ -4,6 +4,8 @@
   "created_at": "{{ISO_TIMESTAMP}}",
   "quick_mode": false,
 
+  "phase": null,
+
   "integrity": {
     "requirements_sha256": "",
     "design_sha256": "",
@@ -67,5 +69,10 @@
       "high": 0,
       "medium": 0
     }
+  },
+
+  "acceptance": {
+    "status": null,
+    "estimated_fix_rounds": null
   }
 }

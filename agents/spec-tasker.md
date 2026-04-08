@@ -200,6 +200,11 @@ If design.md defines shared interfaces/types used by multiple components:
 - All subsequent tasks that consume these types depend on this Wave 0 task
 - This prevents parallel agents from disagreeing on type shapes
 
+**Enforcement**: For specs with 5 or more tasks, placing a types/schemas task in Wave 0
+is required, not optional. The validator will report an ERROR if Wave 0 lacks a
+types/schemas task when total task count >= 5. Always create a Wave 0 task for shared
+types, interfaces, or contracts when the total task count is 5 or more.
+
 ## Separation of Concerns: Build vs. Extract
 
 **Never combine "make it work" and "make it clean" in the same task.** When a task creates a complex component (e.g., a full screen with multiple sections), agents will inline everything into a single file to avoid the complexity of extraction mid-task.

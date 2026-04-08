@@ -92,6 +92,12 @@ Verify that spec documents reference real code, not guessed interfaces:
 - [ ] IF grep finds zero references to a deprecated old field name anywhere in the codebase: report no error for that field
 - [ ] FOR EACH task whose description or title mentions modifying a shared type, DB column, interface field, or schema definition AND that task lacks a `Deprecates` field (or has `Deprecates: none`): report **WARNING**: "Task T-X modifies shared types but has no Deprecates field"
 - [ ] THE SYSTEM SHALL NOT report an ERROR for the absence of `Deprecates` fields — only WARNING — to maintain backward compatibility
+- [ ] IF any task has `Deprecates` != `"none"` AND no sweep task exists whose `Dependencies`
+      field includes that task ID: report ERROR "Task T-X has Deprecates field but no sweep
+      task exists to clean up deprecated references"
+- [ ] IF a sweep task exists but its `Files` array does not cover all files containing
+      deprecated field references (per grep at validation time): report ERROR "Sweep task
+      T-Y Files array does not cover N file(s) containing deprecated field references"
 
 ### 8. Enforceable Lessons
 
@@ -106,6 +112,15 @@ Verify that spec documents reference real code, not guessed interfaces:
 | Check Name | Logic |
 |-----------|-------|
 | `grep_for_old_field_references` | Same logic as Section 7: parse `Deprecates` fields from tasks.md, grep codebase for each old field name, report uncovered references |
+
+### 9. Types-First Wave 0
+
+- [ ] IF tasks.md has 5 or more `### T-` headings, check that at least one task with
+      `Wave: 0` has a `Files` entry or description referencing any of: `types`, `schemas`,
+      `interfaces`, `contracts`, or `shared types`
+- [ ] IF 5+ tasks and no types task in Wave 0: report ERROR "Wave 0 has no types/schemas
+      task. Specs with 5+ tasks require contract-first Wave 0."
+- [ ] IF fewer than 5 tasks: skip this check without reporting
 
 ## Severity Rubric
 
@@ -124,6 +139,8 @@ Severity is not a judgment call. Use these fixed rules.
 - API schema contradicts the type definitions in the codebase
 - Formula produces different numeric results across documents
 - Deprecated field has uncovered references outside spec file boundaries and no sweep task covers them
+- Wave 0 missing types/schemas task in a spec with 5+ tasks
+- Deprecates-bearing task with no corresponding sweep task
 
 ### WARNING (everything else worth reporting)
 

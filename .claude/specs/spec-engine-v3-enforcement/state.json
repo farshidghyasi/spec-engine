@@ -1,0 +1,246 @@
+{
+  "version": 1,
+  "spec_name": "spec-engine-v3-enforcement",
+  "created_at": "2026-04-07T00:00:00Z",
+  "quick_mode": false,
+
+  "integrity": {
+    "requirements_sha256": "9c6ddcf4d36903dea156fb851910570e0f1cc6d7ee17b6c83c8cd49a19884d21",
+    "design_sha256": "47438c867e70cb9412b4855dd7816c117cabd4a693c803b599b59eb7309a500e",
+    "tasks_sha256": "3c7746de1b67bcd70b19e9a434368e6603be4604c8e9a0ec1d3758179bbca2c3",
+    "computed_at": "2026-04-07T00:00:00Z"
+  },
+
+  "tasks": {
+    "T-1": {
+      "status": "completed",
+      "wave": 0,
+      "wired": "n/a",
+      "failures": 0,
+      "files": ["templates/state.json"]
+    },
+    "T-2": {
+      "status": "completed",
+      "wave": 0,
+      "wired": "n/a",
+      "failures": 0,
+      "files": ["agents/spec-validator.md"]
+    },
+    "T-3": {
+      "status": "completed",
+      "wave": 0,
+      "wired": "n/a",
+      "failures": 0,
+      "files": ["agents/spec-tasker.md"]
+    },
+    "T-4": {
+      "status": "completed",
+      "wave": 0,
+      "wired": "n/a",
+      "failures": 0,
+      "files": ["agents/spec-implementer.md", "agents/spec-tester.md", "agents/spec-debugger.md"]
+    },
+    "T-5": {
+      "status": "completed",
+      "wave": 0,
+      "wired": "n/a",
+      "failures": 0,
+      "files": ["agents/spec-acceptor.md"]
+    },
+    "T-6": {
+      "status": "completed",
+      "wave": 0,
+      "wired": "n/a",
+      "failures": 0,
+      "files": ["agents/spec-documenter.md"]
+    },
+    "T-7": {
+      "status": "pending",
+      "wave": 1,
+      "wired": "n/a",
+      "failures": 0,
+      "files": ["skills/spec-exec/SKILL.md"]
+    },
+    "T-8": {
+      "status": "pending",
+      "wave": 1,
+      "wired": "n/a",
+      "failures": 0,
+      "files": ["skills/spec-loop/SKILL.md"]
+    },
+    "T-9": {
+      "status": "pending",
+      "wave": 1,
+      "wired": "n/a",
+      "failures": 0,
+      "files": ["skills/spec-team/SKILL.md"]
+    },
+    "T-10": {
+      "status": "pending",
+      "wave": 1,
+      "wired": "n/a",
+      "failures": 0,
+      "files": ["skills/spec/SKILL.md"]
+    },
+    "T-11": {
+      "status": "pending",
+      "wave": 1,
+      "wired": "n/a",
+      "failures": 0,
+      "files": ["skills/spec-validate/SKILL.md"]
+    },
+    "T-12": {
+      "status": "pending",
+      "wave": 1,
+      "wired": "n/a",
+      "failures": 0,
+      "files": [
+        "skills/spec-security-audit/SKILL.md",
+        "skills/spec-docs/SKILL.md",
+        "skills/spec-release/SKILL.md",
+        "skills/spec-verify/SKILL.md",
+        "skills/spec-retro/SKILL.md"
+      ]
+    },
+    "T-13": {
+      "status": "pending",
+      "wave": 1,
+      "wired": "n/a",
+      "failures": 0,
+      "files": ["skills/spec-status/SKILL.md"]
+    },
+    "T-14": {
+      "status": "pending",
+      "wave": 2,
+      "wired": "n/a",
+      "failures": 0,
+      "files": ["skills/spec-accept/SKILL.md"]
+    }
+  },
+
+  "waves": [
+    {
+      "wave": 0,
+      "tasks": ["T-1", "T-2", "T-3", "T-4", "T-5", "T-6"]
+    },
+    {
+      "wave": 1,
+      "tasks": ["T-7", "T-8", "T-9", "T-10", "T-11", "T-12", "T-13"]
+    },
+    {
+      "wave": 2,
+      "tasks": ["T-14"]
+    }
+  ],
+
+  "parallel": {
+    "max_parallel_agents": 3,
+    "shared_files": [],
+    "generated_files": [],
+    "post_merge_commands": []
+  },
+
+  "execution": {
+    "current_wave": 1,
+    "current_batch": [],
+    "iteration": 0,
+    "total_tokens": 0,
+    "budget_cap": 700000,
+    "started_at": null,
+    "last_iteration_at": null,
+    "human_checkpoint_interval": 5,
+    "tasks_since_checkpoint": 0
+  },
+
+  "reproducibility": {
+    "plugin_version": "2.2.0",
+    "model_versions": {},
+    "git_sha_start": "36267ca6b06603d420d9de35ab4a96ea1f09567f",
+    "prompt_hashes": [],
+    "referenced_codebase_files": [
+      "templates/state.json",
+      "agents/spec-validator.md",
+      "agents/spec-tasker.md",
+      "agents/spec-implementer.md",
+      "agents/spec-tester.md",
+      "agents/spec-debugger.md",
+      "agents/spec-acceptor.md",
+      "agents/spec-documenter.md",
+      "skills/spec-exec/SKILL.md",
+      "skills/spec-loop/SKILL.md",
+      "skills/spec-team/SKILL.md",
+      "skills/spec/SKILL.md",
+      "skills/spec-validate/SKILL.md",
+      "skills/spec-security-audit/SKILL.md",
+      "skills/spec-docs/SKILL.md",
+      "skills/spec-release/SKILL.md",
+      "skills/spec-verify/SKILL.md",
+      "skills/spec-retro/SKILL.md",
+      "skills/spec-accept/SKILL.md",
+      "skills/spec-status/SKILL.md"
+    ]
+  },
+
+  "quality_gates": {
+    "gates": [],
+    "lint_cmd": null,
+    "typecheck_cmd": null,
+    "test_cmd": null,
+    "dev_cmd": null,
+    "integration_cmd": null,
+    "baseline_errors": null,
+    "allowed_commands": [],
+    "last_regression_pass": null
+  },
+
+  "lessons_applied": [],
+
+  "audit_log": [
+    {
+      "event": "threat_model_complete",
+      "threats_by_stride": {
+        "S": 1,
+        "T": 4,
+        "R": 0,
+        "I": 4,
+        "D": 0,
+        "E": 2
+      },
+      "injected_criteria": 6
+    },
+    {
+      "event": "tasks_generated",
+      "task_count": 14,
+      "wave_count": 3,
+      "budget_cap_auto": 700000
+    },
+    {
+      "event": "wave_completed",
+      "wave": 0,
+      "timestamp": "2026-04-07T00:00:00Z",
+      "details": "Wave 0 complete: T-1, T-2, T-3, T-4, T-5, T-6 all completed"
+    }
+  ],
+
+  "security": {
+    "posture_score": null,
+    "last_audit_date": null,
+    "threat_model_status": "completed",
+    "findings": {
+      "critical": 0,
+      "high": 0,
+      "medium": 0
+    }
+  },
+
+  "validation": {
+    "last_pass": "2026-04-07T00:00:00Z",
+    "status": "pass",
+    "report_hash": "auto-fixed-2-errors-3-warnings",
+    "acknowledged_warnings": [
+      "WARN-1: T-14 claims 6 workflow steps but spec-accept has 5 — FIXED",
+      "WARN-2: state.json wired null instead of n/a — FIXED",
+      "WARN-3: T-8 drift detection step label mismatch — FIXED"
+    ]
+  }
+}

@@ -34,6 +34,18 @@ Every claim you make MUST have a command output backing it. If you haven't run t
 | "No regressions" | Full test suite output: same or fewer failures | Running only the new task's tests |
 | "Endpoint works" | curl output with response body and status code | "The route is registered" |
 
+## Anti-Deferral Rule
+
+You MUST implement every acceptance criterion assigned to this task. Do not log warnings,
+add TODO comments, create stubs, or defer to future specs. If you cannot complete a
+criterion, report it as a failure with specific blockers -- never silently skip it.
+
+THE FOLLOWING PHRASES ARE PROHIBITED in your output unless accompanied by a FAILURE report:
+- "deferred to future spec"
+- "TODO: implement later"
+- "stub for now"
+- "placeholder implementation"
+
 ## Critical Rules
 
 - NEVER mark a task as verified without actually running tests and pasting the output
