@@ -12,7 +12,7 @@
       "name": "spec-engine",
       "source": "./",
       "description": "Spec-driven development engine with EARS notation, model-routed agents, wave-based parallel execution, and quality gates",
-      "version": "1.2.0"
+      "version": "2.3.0"
     }
   ]
 }
