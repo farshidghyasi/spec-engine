@@ -21,6 +21,20 @@ Run a comprehensive 15-phase CSO security audit on a spec's implementation. Scop
 /spec-security-audit [spec-name] [--comprehensive]
 ```
 
+## Phase Gate
+
+Before proceeding, read `state.json.phase`. If the field is absent, treat as `"spec"`.
+
+**Required phase**: `"executed"` (order 3)
+**Phase order**: spec(1) -> validated(2) -> executed(3) -> accepted/audited(4) -> documented(5) -> released(6) -> verified(7) -> retro(8)
+
+If `state.json.phase` has not reached the required phase (compare numeric order), display:
+"Phase gate: /spec-security-audit requires phase 'executed' to be complete. Current phase: '<CURRENT>'. Run /spec-exec (or /spec-loop or /spec-team) first."
+Stop execution. Do not proceed to any subsequent step.
+Do NOT expose state.json field names, filesystem paths, or stack traces in this message.
+
+Note: Both `/spec-accept` and `/spec-security-audit` require `'executed'` and may run in either order.
+
 ## Workflow
 
 ### Step 1: Locate Spec and Read State
@@ -72,3 +86,6 @@ If CRITICAL findings exist, display each with:
 - Recommended fix
 
 Show footer: "Report written to: evidence/security-audit.json"
+
+After displaying results, set `state.json.phase` to `"audited"`.
+Log "Phase advanced to 'audited'" to the audit log.

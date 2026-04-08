@@ -21,6 +21,20 @@ Analyze a completed spec and produce actionable lessons for future specs.
 /spec-retro [spec-name]
 ```
 
+## Phase Gate
+
+Before proceeding, read `state.json.phase`. If the field is absent, treat as `"spec"`.
+
+**Required phase**: `"verified"` (order >= 6)
+**Phase order**: spec(1) -> validated(2) -> executed(3) -> accepted/audited(4) -> documented(5) -> released(6) -> verified(7) -> retro(8)
+
+If `state.json.phase` has not reached the required phase (compare numeric order), display:
+"Phase gate: /spec-retro requires phase 'verified' to be complete. Current phase: '<CURRENT>'. Run /spec-verify first."
+Stop execution. Do not proceed to any subsequent step.
+Do NOT expose state.json field names, filesystem paths, or stack traces in this message.
+
+Note: Phase `'released'` (order 6) also satisfies this requirement.
+
 ## Workflow
 
 ### Step 1: Gather Data
@@ -88,3 +102,6 @@ When writing a lesson about deprecated fields, stale references, or schema chang
 If lessons.json already exists, APPEND to the lessons array. Do NOT overwrite existing lessons.
 
 These lessons will be read by `/spec` and `/spec-brainstorm` to improve future specs.
+
+After writing lessons, set `state.json.phase` to `"retro"`.
+Log "Phase advanced to 'retro'" to the audit log.

@@ -46,7 +46,7 @@ Current Batch: T-5, T-6 (Wave 1)
 
 Cost:
   Tokens used: 45,230
-  Budget cap: 500,000 (9% used)
+  Budget cap:  500,000 (auto-calculated, 10 tasks x 50000) (9% used)
   Estimated remaining: ~60,000 tokens
 
 Quality Gates:
@@ -71,6 +71,22 @@ Dependencies:
 Integrity: VALID (spec files match manifest)
 
 Next: Run /spec-exec or /spec-loop to continue implementation
+```
+
+## Budget Display Logic
+
+Read `state.json.execution.budget_cap` (call it `cap`) and count tasks in `state.json.tasks`
+(call it `task_count`):
+
+- If `cap` is null: source = "(not set)"
+- Else if `cap == task_count * 50000`: source = "(auto-calculated, <task_count> tasks x 50000)"
+- Else: source = "(manual)"
+
+**Display format**:
+
+```
+Tokens used: <total_tokens>
+Budget cap:  <cap> <source>
 ```
 
 ## Security Display

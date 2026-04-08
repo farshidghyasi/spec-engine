@@ -28,6 +28,20 @@ If `spec-name` is omitted, auto-detect if only one spec exists.
 - `--no-fix`: Skip auto-fix and only report errors. By default, validation automatically fixes ERROR-level issues.
 - `--strict-lessons`: Promote lessons-derived validation rules from WARNING to ERROR severity. Use when you want lesson patterns to block execution.
 
+## Phase Gate
+
+Before proceeding, read `state.json.phase`. If the field is absent, treat as `"spec"`.
+
+**Required phase**: `"spec"`
+**Phase order**: spec(1) -> validated(2) -> executed(3) -> accepted/audited(4) -> documented(5) -> released(6) -> verified(7) -> retro(8)
+
+If `state.json.phase` has not reached the required phase (compare numeric order), display:
+"Phase gate: /spec-validate requires phase 'spec' to be complete. Current phase: '<CURRENT>'. Run /spec first."
+Stop execution. Do not proceed to any subsequent step.
+Do NOT expose state.json field names, filesystem paths, or stack traces in this message.
+
+Note: A missing `phase` field is treated as `"spec"` (phase order 1), so existing specs created before this change always pass this gate.
+
 ## Workflow
 
 1. **Locate spec**: Find the spec directory in `.claude/specs/`. Validate the spec name.
@@ -151,6 +165,11 @@ If the read-back shows no `validation.status` field, the write failed — fix it
       - ERRORs found AND auto-fix resolved all of them → `"pass"`
       - ERRORs found AND `--no-fix` was used → `"fail"`
       - ERRORs found AND auto-fix failed to resolve some → `"fail"`
+
+      If validation status is `"pass"`: set `state.json.phase` to `"validated"`.
+      Log "Phase advanced to 'validated'" to the audit log.
+
+      Note: Phase is NOT advanced if validation status is `"fail"`.
    d. Collect all WARNING-level findings from the validation report and write to state.json:
       ```json
       "validation": {

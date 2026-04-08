@@ -76,6 +76,29 @@ During execution, emit structured progress lines for real-time visibility:
 
 Append each line to `.claude/specs/<name>/progress.log`.
 
+## Phase Gate
+
+Before proceeding, read `state.json.phase`. If the field is absent, treat as `"spec"`.
+
+**Required phase**: `"validated"`
+**Phase order**: spec(1) -> validated(2) -> executed(3) -> accepted/audited(4) -> documented(5) -> released(6) -> verified(7) -> retro(8)
+
+If `state.json.phase` has not reached the required phase (compare numeric order), display:
+"Phase gate: /spec-team requires phase 'validated' to be complete. Current phase: '<CURRENT>'. Run /spec-validate first."
+Stop execution. Do not proceed to any subsequent step.
+Do NOT expose state.json field names, filesystem paths, or stack traces in this message.
+
+## Dependency Gate
+
+Read `requirements.md` for a `## Depends On` section. For each listed dependency spec name:
+1. Validate the spec name contains only alphanumeric characters, hyphens, and underscores.
+   If it contains path separators (`/`, `\`) or `..` sequences: log a warning and skip it.
+2. Read `.claude/specs/<dep-name>/state.json`
+3. Check `state.json.phase` is at phase order >= 4 (`"accepted"` or later). If `phase` is absent, treat as not accepted.
+4. If any dependency is not accepted: display "Dependency gate: spec '<dep-name>' is at phase '<phase>', requires 'accepted'. Run /spec-accept <dep-name> first." Stop execution.
+5. If the dependency directory does not exist: display "Dependency gate: spec '<dep-name>' not found in .claude/specs/." Stop execution.
+6. If no `## Depends On` section exists or it is empty: skip and proceed.
+
 ## Team Workflow
 
 ### Per-Wave Execution
@@ -91,6 +114,7 @@ For each wave, the team processes tasks through a parallel-then-sequential pipel
    - Tasks with non-overlapping Files run in parallel
    - Tasks with file conflicts run sequentially after the parallel group
 5. **Run lifecycle hook**: Execute `hook_on_wave_start` with args: `<spec_name> <wave_number>`. Best-effort.
+6. **Shared File Hard Gate**: Compare each task's Files against `state.json.parallel.shared_files`. Move matching tasks to sequential. Log "SHARED FILE ISOLATION: T-X moved to sequential". After wave, run barrel reconciliation. Dispatch spec-debugger on conflict.
 
 #### Phase 1: Parallel Implementation + Wiring
 
@@ -117,6 +141,12 @@ you are violating this gate.
      - "The agent probably committed" — It didn't. Every wave in a real run required manual commits. Always commit.
      - "I'll commit after the quality gates" — No. Commit first, then gates. If gates fail, you need the commit to diff against.
      - "There's nothing to commit" — Run `git status` in the worktree. If the agent produced no changes, that's a task failure, not a skip.
+   a2. **Auto-Format Changed Files**: After auto-commit:
+     1. If the changed file list is empty: skip.
+     2. Detect formatter: `biome.json` -> `npx biome check --write`, `.prettierrc*` -> `npx prettier --write`, `.eslintrc*` -> `npx eslint --fix`, else log "No formatter detected" and skip.
+     3. Do NOT pass `--unsafe` for `.tsx`/`.jsx` files.
+     4. Execute ONLY the predefined command. Do NOT execute arbitrary config file contents.
+     5. If formatter exits non-zero: log and proceed (best-effort).
    b. **Shared file enforcement**: If agent modified any shared file, revert and log warning
    c. **Cross-agent import resolution**: Verify imports between parallel agents match actual exports. Fix mismatches directly or re-dispatch sequentially.
 
@@ -209,8 +239,12 @@ the grep verification below and confirmed non-zero imports. An agent saying
    - "The tests pass so it must be wired" — Tests run in isolation. Wired means reachable from the app entry point.
    - "I'll check wiring at the end" — Check per-wave. Deferring wiring checks is how 12 routes got marked wired:yes without being mounted.
 
+   **Evidence Writing**: Write `evidence/wiring-wave-N.md` with per-task grep results.
+   **WIRING HARD GATE**: If any task has `wired: "pending"` after verification (excluding `"n/a"`): log "WIRING HARD GATE: Wave N blocked" and STOP.
+
 #### Phase 5: Commit
 
+12. **ATOMIC STATE UPDATE**: Update `state.json.tasks[T-X].status` to `"completed"` BEFORE running git add. Include `.claude/specs/<name>/state.json` in the same commit as the task's implementation files.
 12. Update state.json: all wave tasks completed, tokens used, audit log
 12.5 **Run lifecycle hooks**: For each completed task in the wave, execute `hook_on_task_complete` with args: `<spec_name> <task_id> completed`. Best-effort.
 13. Commit with descriptive message listing all task IDs
@@ -241,3 +275,7 @@ When ALL tasks have status "completed" AND wired is "yes" or "n/a" in state.json
 - Present summary with quality metrics, wiring health, and parallel execution stats
 - Suggest next steps: /spec-accept, /spec-docs, `gh pr create --head spec/<name>`
 - **Run lifecycle hook**: Execute `hook_on_spec_complete` with args: `<spec_name> <final_status>`. Synchronous (wait for completion).
+
+When all tasks are completed and wired:
+Set `state.json.phase` to `"executed"`.
+Log "Phase advanced to 'executed'" to the audit log.

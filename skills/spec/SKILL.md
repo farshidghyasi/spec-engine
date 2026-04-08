@@ -175,6 +175,15 @@ After design approval, delegate to the **spec-tasker** agent:
 - The Verified Interface Registry from Step 6.5
 - Instruction: read requirements.md and design.md, use the provided Interface Registry as ground truth for all type shapes and function signatures, generate tasks.md, update state.json
 
+### Step 7.5: Auto-Calculate Budget
+
+After the tasker completes and `state.json.tasks` is populated:
+1. Count the total number of tasks in `state.json.tasks` (call it `task_count`)
+2. If `state.json.execution.budget_cap` is null: set it to `task_count * 50000`
+3. Log "Budget auto-calculated: <cap> tokens (<task_count> tasks x 50000)" to the audit log
+4. If `state.json.execution.budget_cap` is already non-null: do NOT overwrite it
+   (manually configured budgets take precedence)
+
 ### Step 8: Compute Integrity Manifest
 
 After tasks are written:
@@ -224,3 +233,6 @@ Present:
 - Risks identified
 - Quality gates configured (or "Not configured — edit init.sh")
 - Next steps: suggest `/spec-validate` before implementation, then `/spec-exec` or `/spec-loop`
+
+Set `state.json.phase` to `"spec"` to record that spec creation is complete.
+Log "Phase set to 'spec'" to the audit log.

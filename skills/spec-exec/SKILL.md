@@ -46,6 +46,34 @@ Emit structured progress lines during execution:
 
 Append each line to `.claude/specs/<name>/progress.log`.
 
+## Phase Gate
+
+Before proceeding, read `state.json.phase`. If the field is absent, treat as `"spec"`.
+
+**Required phase**: `"validated"`
+**Phase order**: spec(1) -> validated(2) -> executed(3) -> accepted/audited(4) -> documented(5) -> released(6) -> verified(7) -> retro(8)
+
+If `state.json.phase` has not reached the required phase (compare numeric order), display:
+"Phase gate: /spec-exec requires phase 'validated' to be complete. Current phase: '<CURRENT>'. Run /spec-validate first."
+Stop execution. Do not proceed to any subsequent step.
+Do NOT expose state.json field names, filesystem paths, or stack traces in this message.
+
+## Dependency Gate
+
+Read `requirements.md` for a `## Depends On` section. For each listed dependency spec name:
+1. Validate the spec name contains only alphanumeric characters, hyphens, and underscores.
+   If it contains path separators (`/`, `\`) or `..` sequences: log a warning and skip it.
+2. Read `.claude/specs/<dep-name>/state.json`
+3. Check `state.json.phase` is at phase order >= 4 (`"accepted"` or `"audited"` or later).
+   If `phase` is absent, treat as not accepted.
+4. If any dependency is not accepted, display:
+   "Dependency gate: spec '<dep-name>' is at phase '<phase>', requires 'accepted'. Run /spec-accept <dep-name> first."
+   Stop execution.
+5. If the dependency directory does not exist: display
+   "Dependency gate: spec '<dep-name>' not found in .claude/specs/."
+   Stop execution.
+6. If no `## Depends On` section exists or it is empty: skip this check and proceed.
+
 ## Workflow
 
 ### Step 1: Load State
@@ -69,6 +97,18 @@ Check if the codebase changed under this spec since it was written:
    - Update `git_sha_start` to current HEAD
    - Present a summary of what drifted and what was fixed
 
+### Step 1.7: Fresh Validation
+
+Run inline structural checks (do NOT dispatch the validator agent):
+1. Read state.json and count task IDs in `state.json.tasks`
+2. Read tasks.md and count `### T-` headings
+3. Verify every task ID in state.json exists as a `### T-X` heading in tasks.md (and vice versa)
+4. Verify wave assignments: for each task, `state.json.tasks[T-X].wave` matches the `Wave:` field in tasks.md
+5. Verify all `Dependencies` values in tasks.md reference valid task IDs (no dangling references)
+6. Verify no circular dependencies: BFS from each task; if any task appears in its own dependency chain, report a circular dependency error
+7. If any check fails: display the specific error, dispatch spec-debugger to fix, and stop execution if the fix fails
+8. If all checks pass: log "Fresh validation passed: N tasks, M waves, 0 structural errors" to the audit log
+
 ### Step 2: Check Preconditions
 
 1. **Cross-spec dependencies**: If requirements.md has `## Depends On`, verify those specs are complete
@@ -80,12 +120,22 @@ Check if the codebase changed under this spec since it was written:
 1. Record the current git SHA as `pre_wave_sha` (for wave rollback if needed)
 2. Read `state.json.waves` to find the current wave
 3. Collect pending tasks in the current wave
-4. **Build parallel groups** from file ownership:
+4. **Shared File Hard Gate**: Before building parallel groups for this wave:
+   1. Read `state.json.parallel.shared_files`
+   2. For each task in the wave, compare its `Files` array against `shared_files`
+   3. If ANY file matches: move that task to a sequential sub-batch
+   4. Log "SHARED FILE ISOLATION: T-X moved to sequential -- owns shared file <path>"
+   5. After the wave completes, run barrel reconciliation: for each file in `shared_files`
+      modified by any task (detected via `git diff`), consolidate all modifications into a
+      single coherent version. If reconciliation cannot auto-resolve a conflict, log it and
+      dispatch spec-debugger.
+
+5. **Build parallel groups** from file ownership:
    - Read `files` field from each task in state.json
    - Tasks with non-overlapping files form a parallel group
    - Tasks with file conflicts go into sequential sub-batches
-5. Update `state.json.execution.current_batch` with the first parallel group's task IDs
-6. **Generate import manifest**: Scan all files created/modified by completed tasks in previous waves. For each file, extract its exports (functions, classes, types, constants). Build a manifest of exact export names, function signatures, and file paths. This prevents agents from guessing import names.
+6. Update `state.json.execution.current_batch` with the first parallel group's task IDs
+7. **Generate import manifest**: Scan all files created/modified by completed tasks in previous waves. For each file, extract its exports (functions, classes, types, constants). Build a manifest of exact export names, function signatures, and file paths. This prevents agents from guessing import names.
 
 ### Step 4: Implementation
 
@@ -131,6 +181,19 @@ Tell each implementer:
 ### Step 4.5: Post-Merge Regeneration
 
 Run commands from `state.json.parallel.post_merge_commands` (lock file regen, codegen, cache clean). **If any command fails, treat it as a blocking error** — halt, attempt auto-fix, skip wave if still failing.
+
+### Step 4.7: Auto-Format Changed Files
+
+After merge and before quality gates:
+1. If the changed file list is empty: skip this step.
+2. Detect formatter from project root config files:
+   - If `biome.json` exists: command = `npx biome check --write <changed_files>`
+   - Else if `.prettierrc` or `.prettierrc.*` or `prettier.config.*` exists: command = `npx prettier --write <changed_files>`
+   - Else if `.eslintrc` or `.eslintrc.*` or `eslint.config.*` exists: command = `npx eslint --fix <changed_files>`
+   - Else: log "No formatter detected, skipping auto-format" to audit log and skip
+3. Do NOT pass `--unsafe` flag for `.tsx` or `.jsx` files under any circumstances.
+4. Execute ONLY the predefined formatter command above. Do NOT execute arbitrary commands from config file contents.
+5. If the formatter command exits non-zero: log the failure details to the audit log and proceed (auto-format is best-effort, not blocking).
 
 ### Step 5: Quality Gates (Diff Mode)
 
@@ -189,6 +252,20 @@ For EACH task marked `wired: "yes"` in state.json:
 - "The tests pass so it must be wired" — Tests run in isolation. Wired means reachable from the app entry point.
 - "I'll check wiring at the end" — Check per-wave. Deferring wiring checks is how 12 routes got marked wired:yes without being mounted.
 
+**Evidence Writing**: After all grep checks, write `evidence/wiring-wave-N.md` (N = current wave):
+```
+# Wiring Evidence: Wave N
+
+## T-X: <task title>
+- Export: <export_name>
+- Grep command: `<command>`
+- Grep output: <output or "no imports found">
+- Result: PASS / FAIL
+```
+**WIRING HARD GATE**: If any task has `wired: "pending"` after verification (excluding tasks
+marked `wired: "n/a"`): log "WIRING HARD GATE: Wave N blocked -- T-X has wired=pending" to
+the audit log and STOP. Do not advance to the next wave.
+
 ### Step 6: Update State
 
 After successful quality gates:
@@ -204,6 +281,11 @@ After successful quality gates:
 
 ### Step 7: Commit
 
+**ATOMIC STATE UPDATE**: Before running `git add`, update `state.json.tasks[T-X].status`
+to `"completed"`. Do NOT defer state.json updates to wave boundaries.
+Include `.claude/specs/<name>/state.json` in `git add` alongside the task's declared Files.
+The state.json MUST be in the same commit as the task's code changes.
+
 1. Stage changed files (excluding secrets detected in Step 5)
 2. Commit with descriptive message referencing task IDs
 
@@ -214,6 +296,10 @@ After successful quality gates:
 3. Report status: "Completed T-X, T-Y (parallel, Wired: yes). Wave 1: 4/4 done. Advancing to Wave 2. 7/15 tasks total."
 4. If all tasks complete, suggest next steps: `/spec-accept`, `/spec-docs`, `gh pr create --head spec/<name>`
 5. If all tasks complete, run `hook_on_spec_complete` synchronously if configured in init.sh.
+
+When all tasks have `status: "completed"` and `wired: "yes"` or `"n/a"`:
+Set `state.json.phase` to `"executed"`.
+Log "Phase advanced to 'executed'" to the audit log.
 
 ## Dry-Run Mode
 

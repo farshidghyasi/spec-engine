@@ -55,42 +55,42 @@
       "files": ["agents/spec-documenter.md"]
     },
     "T-7": {
-      "status": "pending",
+      "status": "completed",
       "wave": 1,
       "wired": "n/a",
       "failures": 0,
       "files": ["skills/spec-exec/SKILL.md"]
     },
     "T-8": {
-      "status": "pending",
+      "status": "completed",
       "wave": 1,
       "wired": "n/a",
       "failures": 0,
       "files": ["skills/spec-loop/SKILL.md"]
     },
     "T-9": {
-      "status": "pending",
+      "status": "completed",
       "wave": 1,
       "wired": "n/a",
       "failures": 0,
       "files": ["skills/spec-team/SKILL.md"]
     },
     "T-10": {
-      "status": "pending",
+      "status": "completed",
       "wave": 1,
       "wired": "n/a",
       "failures": 0,
       "files": ["skills/spec/SKILL.md"]
     },
     "T-11": {
-      "status": "pending",
+      "status": "completed",
       "wave": 1,
       "wired": "n/a",
       "failures": 0,
       "files": ["skills/spec-validate/SKILL.md"]
     },
     "T-12": {
-      "status": "pending",
+      "status": "completed",
       "wave": 1,
       "wired": "n/a",
       "failures": 0,
@@ -103,7 +103,7 @@
       ]
     },
     "T-13": {
-      "status": "pending",
+      "status": "completed",
       "wave": 1,
       "wired": "n/a",
       "failures": 0,
@@ -141,7 +141,7 @@
   },
 
   "execution": {
-    "current_wave": 1,
+    "current_wave": 2,
     "current_batch": [],
     "iteration": 0,
     "total_tokens": 0,
@@ -219,6 +219,12 @@
       "wave": 0,
       "timestamp": "2026-04-07T00:00:00Z",
       "details": "Wave 0 complete: T-1, T-2, T-3, T-4, T-5, T-6 all completed"
+    },
+    {
+      "event": "wave_completed",
+      "wave": 1,
+      "timestamp": "2026-04-07T00:00:00Z",
+      "details": "Wave 1 complete: T-7, T-8, T-9, T-10, T-11, T-12, T-13 all completed"
     }
   ],
 

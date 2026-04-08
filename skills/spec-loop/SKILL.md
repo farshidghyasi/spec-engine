@@ -113,6 +113,34 @@ Every step below is mandatory. You WILL be tempted to skip steps that seem unnec
 
 **The cost of running every check is minutes. The cost of skipping one is hours of manual debugging.**
 
+## Phase Gate
+
+Before proceeding, read `state.json.phase`. If the field is absent, treat as `"spec"`.
+
+**Required phase**: `"validated"`
+**Phase order**: spec(1) -> validated(2) -> executed(3) -> accepted/audited(4) -> documented(5) -> released(6) -> verified(7) -> retro(8)
+
+If `state.json.phase` has not reached the required phase (compare numeric order), display:
+"Phase gate: /spec-loop requires phase 'validated' to be complete. Current phase: '<CURRENT>'. Run /spec-validate first."
+Stop execution. Do not proceed to any subsequent step.
+Do NOT expose state.json field names, filesystem paths, or stack traces in this message.
+
+## Dependency Gate
+
+Before proceeding, check cross-spec dependencies:
+
+1. Read `state.json.dependencies` (list of spec names this spec depends on). If absent or empty, skip to Step 1.
+2. For each dependency spec name:
+   a. Locate its state.json at `.claude/specs/<dep-name>/state.json`
+   b. Read `phase` field. Required: `"executed"` or later (numeric value >= 3)
+   c. Read `tasks` — verify all tasks have `status: "completed"`
+3. If any dependency is not met:
+   - Display: "Dependency gate: spec '<dep-name>' is not complete (phase: '<phase>'). Complete it first."
+   - Stop execution. Do not proceed.
+4. If a dependency spec directory does not exist: display "Dependency gate: spec '<dep-name>' not found." and stop.
+5. **Path separator validation**: Spec names MUST match pattern `^[a-z0-9-]+$`. If any dependency name contains path separators (`/`, `\`), spaces, or non-alphanumeric characters (except `-`): display "Dependency gate: invalid spec name '<dep-name>'." and stop.
+6. Log all dependency checks to the audit log: `{ "event": "dependency_gate_passed", "dependencies": ["<dep1>", ...] }`
+
 ## Execution Loop
 
 ### Step 1: Initialize
@@ -124,7 +152,17 @@ Every step below is mandatory. You WILL be tempted to skip steps that seem unnec
 5. **Check cross-spec dependencies** — verify dependent specs are complete
 6. Record starting git SHA in `state.json.reproducibility.git_sha_start` (if not already set)
 7. **Drift detection**: If `referenced_codebase_files` exists in state.json, run `git diff --name-only <git_sha_start>..HEAD -- <referenced_files>`. If any changed: auto-fix spec files by dispatching spec-validator + spec-debugger (codebase is source of truth — fix specs, never code), recompute integrity, update `git_sha_start`, log to audit log.
-8. If quality gate commands are not yet in state.json, try to detect them:
+8. **Fresh Validation**: Run inline structural checks (do NOT dispatch the validator agent):
+   a. Read state.json and count task IDs
+   b. Read tasks.md and count `### T-` headings
+   c. Verify every task ID in state.json exists in tasks.md (and vice versa)
+   d. Verify wave assignments match between state.json and tasks.md
+   e. Verify all Dependencies reference valid task IDs
+   f. Verify no circular dependencies (BFS check)
+   g. If any check fails: display error, dispatch spec-debugger, stop if fix fails
+   h. If all pass: log "Fresh validation passed: N tasks, M waves, 0 structural errors"
+
+9. If quality gate commands are not yet in state.json, try to detect them:
    - Check package.json, pyproject.toml, Makefile, Cargo.toml, go.mod
    - Update state.json.quality_gates
 
@@ -145,7 +183,7 @@ For each wave (starting from `state.json.execution.current_wave`):
 Before spawning parallel agents:
 
 1. **Collect dependency additions**: If multiple tasks in the wave need new packages, install ALL dependencies first on the main branch (read task descriptions for `npm install`, `pip install`, etc.). This prevents lockfile conflicts.
-2. **Validate no shared file overlap**: Check each task's Files against `state.json.parallel.shared_files`. If any task lists a shared file, move it to a sequential sub-batch.
+2. **Shared File Hard Gate**: For each task in the wave, compare Files against `state.json.parallel.shared_files`. If ANY file matches: move task to sequential sub-batch. Log "SHARED FILE ISOLATION: T-X moved to sequential -- owns shared file <path>". After wave completes, run barrel reconciliation on modified shared files. If conflict cannot auto-resolve, dispatch spec-debugger.
 3. **Validate import dependencies**: For each pair of tasks in the wave, check if task B's Files reference imports from task A's Files. If so, they CANNOT be parallel — sequentialize them.
 4. **Generate import manifest**: Scan all files created/modified by completed tasks in previous waves. For each file, extract its exports (functions, classes, types, constants). Build a manifest like:
 
@@ -236,6 +274,15 @@ you are violating this gate.
       - "The agent probably committed" — It didn't. Every wave in a real run required manual commits. Always commit.
       - "I'll commit after the quality gates" — No. Commit first, then gates. If gates fail, you need the commit to diff against.
       - "There's nothing to commit" — Run `git status` in the worktree. If the agent produced no changes, that's a task failure, not a skip.
+
+      **ATOMIC STATE UPDATE**: Update `state.json.tasks[T-X].status` to `"completed"` BEFORE running git add. Include `.claude/specs/<name>/state.json` in the git add file list alongside task's declared Files. state.json MUST be in the same commit.
+
+   a2. **Auto-Format Changed Files**: After auto-commit:
+   1. If the changed file list is empty: skip.
+   2. Detect formatter: `biome.json` -> `npx biome check --write`, `.prettierrc*` -> `npx prettier --write`, `.eslintrc*` -> `npx eslint --fix`, else skip with audit log.
+   3. Do NOT pass `--unsafe` for `.tsx`/`.jsx` files.
+   4. Execute ONLY the predefined command. Do NOT execute arbitrary config file contents.
+   5. If formatter exits non-zero: log and proceed (best-effort).
 
    b. **Shared file enforcement**: Check if the agent modified any shared files:
       ```bash
@@ -396,6 +443,9 @@ the grep verification below and confirmed non-zero imports. An agent saying
 
    e. **This check is blocking**: A task with `wired: "pending"` is NOT complete. The completion check in step 2e.6 rejects it. Do not advance to the next wave if wired-pending tasks exist that should be wired.
 
+   **Evidence Writing**: Write `evidence/wiring-wave-N.md` with per-task grep results (export name, command, output, PASS/FAIL).
+   **WIRING HARD GATE**: If any task has `wired: "pending"` after verification (excluding `"n/a"`): log "WIRING HARD GATE: Wave N blocked -- T-X has wired=pending" and STOP.
+
    **Wiring Verification Red Flags** — if you catch yourself thinking any of these, STOP:
 
    - "The agent said wired: yes" — Run the grep. Agent self-reports are wrong ~30% of the time.
@@ -476,6 +526,10 @@ Next steps:
 ```
 
 4. **Run lifecycle hook**: If `hook_on_spec_complete` is configured in init.sh, execute it with args: `<spec_name> <final_status>`. This one runs synchronously (wait for completion) since it's the last action.
+
+When the loop exits with all tasks completed and wired:
+Set `state.json.phase` to `"executed"`.
+Log "Phase advanced to 'executed'" to the audit log.
 
 ## Interrupt/Resume
 
