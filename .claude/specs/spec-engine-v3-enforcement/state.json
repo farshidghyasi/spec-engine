@@ -110,7 +110,7 @@
       "files": ["skills/spec-status/SKILL.md"]
     },
     "T-14": {
-      "status": "pending",
+      "status": "completed",
       "wave": 2,
       "wired": "n/a",
       "failures": 0,
@@ -225,6 +225,12 @@
       "wave": 1,
       "timestamp": "2026-04-07T00:00:00Z",
       "details": "Wave 1 complete: T-7, T-8, T-9, T-10, T-11, T-12, T-13 all completed"
+    },
+    {
+      "event": "wave_completed",
+      "wave": 2,
+      "timestamp": "2026-04-07T00:00:00Z",
+      "details": "Wave 2 complete: T-14 completed. All 14/14 tasks done."
     }
   ],
 
