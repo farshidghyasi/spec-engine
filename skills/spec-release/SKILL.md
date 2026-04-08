@@ -25,15 +25,15 @@ Prepare release artifacts with reproducibility manifest.
 
 Before proceeding, read `state.json.phase`. If the field is absent, treat as `"spec"`.
 
-**Required phase**: `"accepted"` (order >= 4)
+**Required phase**: `"documented"` (order >= 5)
 **Phase order**: spec(1) -> validated(2) -> executed(3) -> accepted/audited(4) -> documented(5) -> released(6) -> verified(7) -> retro(8)
 
 If `state.json.phase` has not reached the required phase (compare numeric order), display:
-"Phase gate: /spec-release requires phase 'accepted' to be complete. Current phase: '<CURRENT>'. Run /spec-accept first."
+"Phase gate: /spec-release requires phase 'documented' to be complete. Current phase: '<CURRENT>'. Run /spec-docs first."
 Stop execution. Do not proceed to any subsequent step.
 Do NOT expose state.json field names, filesystem paths, or stack traces in this message.
 
-Note: Phase `'audited'` or `'documented'` also satisfy this requirement. The existing security gate (CRITICAL findings check) is separate.
+Note: The existing security gate (CRITICAL findings check) is a separate guard within the workflow.
 
 ## Workflow
 
