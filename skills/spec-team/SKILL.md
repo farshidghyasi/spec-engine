@@ -74,7 +74,7 @@ During execution, emit structured progress lines for real-time visibility:
 - After each quality gate: `[12:35:15] ▸ lint ✓ │ typecheck ✓ │ test ✓`
 - On completion: `[12:40:00] ▸ COMPLETE │ 8/8 tasks │ ~64k tokens`
 
-Append each line to `.claude/specs/<name>/progress.log`.
+Append each line to `.claude/specs/<name>/progress.log`. **Use the Write tool (append) or Edit tool — NEVER Bash `echo >>` as it triggers permission prompts.**
 
 ## Phase Gate
 

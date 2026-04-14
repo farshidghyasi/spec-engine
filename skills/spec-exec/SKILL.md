@@ -44,7 +44,7 @@ Emit structured progress lines during execution:
 - After quality gates: `[HH:MM:SS] ▸ lint ✓ │ typecheck ✓ │ test ✓`
 - On wiring check: `[HH:MM:SS] ▸ T-X wired ✓` or `[HH:MM:SS] ▸ T-X wired ✗ (downgraded)`
 
-Append each line to `.claude/specs/<name>/progress.log`.
+Append each line to `.claude/specs/<name>/progress.log`. **Use the Write tool (append) or Edit tool — NEVER Bash `echo >>` as it triggers permission prompts.**
 
 ## Phase Gate
 

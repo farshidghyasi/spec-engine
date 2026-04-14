@@ -84,7 +84,7 @@ During execution, emit structured progress lines to keep the user informed of re
 - After each wave: `[12:35:20] ▸ Wave 2/4 complete`
 - On completion: `[12:40:00] ▸ COMPLETE │ 8/8 tasks │ ~64k tokens`
 
-Also append each progress line to `.claude/specs/<name>/progress.log` for later review.
+Also append each progress line to `.claude/specs/<name>/progress.log` for later review. **IMPORTANT: Use the Write tool (append) or Edit tool to write to progress.log — NEVER use Bash `echo >>` because it triggers permission prompts and breaks autonomous execution.**
 
 Emit these lines as plain text output between tool calls — they are displayed directly to the user.
 
