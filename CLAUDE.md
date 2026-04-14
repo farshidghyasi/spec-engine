@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code when working with the spec-engine plugin.
 
+## Git Identity
+
+Always use this email for all git commits: `farshid.ghyasi@gmail.com`. No other email should be used.
+
 ## Overview
 
 spec-engine is a Claude Code plugin that guides feature development through a structured pipeline: Requirements (EARS notation) -> Design (architecture) -> Tasks (dependency DAG) -> Wave-based Execution -> Quality Gates -> Acceptance -> Docs -> Release -> Retrospective.
