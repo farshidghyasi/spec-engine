@@ -1,238 +1,108 @@
 ---
 name: spec
 description: Start a new spec-driven development workflow for a feature
-argument-hint: "<feature-name>"
+argument-hint: "<feature-name> [--consensus]"
+disable-model-invocation: true
 allowed-tools:
   - Read
   - Write
   - Glob
   - Grep
+  - Bash
   - Agent
   - AskUserQuestion
 ---
 
-# /spec Command
+# /spec
 
-Create a new specification using the 3-phase workflow: Requirements, Design, Tasks.
+Create a specification in three phases: Requirements (EARS) -> Design (architecture, human gate) -> Tasks (wave DAG).
 
-## Arguments
-
-- `feature-name` (required): Name for the feature spec (lowercase, hyphens, dots, underscores only)
+```
+SS="python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec-state.py"
+```
 
 ## Options
 
-- `--consensus`: Enable consensus planning. After the planner writes the initial draft, an Architect and Critic review it before finalization. Adds ~2x tokens to the planning phase but catches more design issues.
+- `--consensus`: after the planner's draft, an Architect and a Critic (spec-consultant) review it and the
+  planner revises. About 2x planning tokens.
 
 ## Workflow
 
-### Step 1: Validate and Initialize
+### 1. Initialize
 
-1. Validate the spec name matches `^[a-z0-9][a-z0-9._-]{0,62}[a-z0-9]?$`. If invalid, reject with an error.
-2. Check if `.claude/specs/<feature-name>/` already exists. If so, ask the user if they want to overwrite.
-3. Create the spec directory: `.claude/specs/<feature-name>/`
-4. Copy templates from `${CLAUDE_PLUGIN_ROOT}/templates/` to the spec directory:
-   - `requirements.md`, `design.md`, `tasks.md`, `state.json`, `init.sh`
-5. Create `evidence/screenshots/`, `evidence/reviews/`, `evidence/tests/`, `handoffs/` subdirectories
+`$SS init <feature-name>` (validates the name, copies templates, creates `evidence/` and `handoffs/`,
+records `git_sha_start`). If it reports the directory exists, ask the user whether to overwrite and
+re-run with `--force`.
 
-### Step 2: Read Lessons
+### 2. Lessons and preset
 
-If `.claude/specs/lessons.json` exists, read it and extract lessons relevant to this feature type. Present the top 3 relevant lessons to the user: "Based on past specs, consider: [lesson]"
+- If `.claude/specs/lessons.json` exists, read it and show the top 3 lessons relevant to this feature.
+- Ask via AskUserQuestion whether to start from a preset (REST API, React Page, CLI Tool) or from
+  scratch. Presets live in `${CLAUDE_PLUGIN_ROOT}/templates/presets/<slug>.md`.
 
-### Step 3: Preset Selection
-
-Ask the user via AskUserQuestion:
-
-> Would you like to start from a preset template or from scratch?
-
-Options:
-- **REST API** — Pre-filled user stories for CRUD, validation, auth, errors, pagination
-- **React Page** — Pre-filled user stories for rendering, routing, state, API integration, responsive layout
-- **CLI Tool** — Pre-filled user stories for arg parsing, subcommands, output formatting, errors
-- **Start from scratch** — Blank requirements
-
-If a preset is selected, read `${CLAUDE_PLUGIN_ROOT}/templates/presets/<slug>.md`.
-
-### Step 4: Interactive Requirements Gathering
-
-**This phase runs inline, NOT in a subagent** (subagents cannot use AskUserQuestion).
+### 3. Interactive requirements gathering (inline, not in a subagent)
 
 Use AskUserQuestion in 2-3 rounds:
 
-**Round 1: Scope and Users**
-- What is the core problem this feature solves? What are the boundaries?
-- Who will use this feature? What are their goals?
+1. Scope and users: the core problem, boundaries, who uses it and why.
+2. Behaviors and edge cases: main flows, failure modes (invalid input, network), security concerns
+   (auth, data sensitivity).
+3. Non-functional and context: performance, accessibility, scale, explicit non-goals. Read the
+   relevant existing code to learn architecture and conventions.
 
-**Round 2: Behaviors and Edge Cases**
-- What are the main actions/flows?
-- What happens when things go wrong? Invalid input? Network failures?
-- Security concerns? Authentication, authorization, data sensitivity?
+Collect everything into a structured brief.
 
-**Round 3: Non-Functional and Context**
-- Performance expectations? Accessibility? Scalability?
-- What explicitly should NOT be included?
-- Read relevant existing code to understand architecture, patterns, conventions.
+### 4. Requirements and design (spec-planner, Opus)
 
-Collect all answers into a structured brief.
+Dispatch `spec-planner` with: feature name and spec dir, the full brief, codebase context, the preset
+(labelled "customize, do not copy"), relevant lessons, and "write requirements.md and design.md; do not
+ask questions".
 
-### Step 5: Requirements + Design Writing (spec-planner agent)
+### 5. Threat model (always on)
 
-Delegate to the **spec-planner** agent using the Agent tool. Pass ALL context:
+Dispatch `spec-threat-modeler` with the spec dir and the contents of requirements.md and design.md. It
+writes `evidence/threat-model.md` and appends `[threat-model]` criteria to requirements.md. Afterwards:
+`$SS set <spec> security.threat_model_status completed` and `$SS log <spec> threat_model_complete`.
+On agent error: `$SS log <spec> threat_model_failed --details "<error>"` and continue.
 
-- Feature name and spec directory path
-- Complete user answers from Step 4
-- Relevant codebase context
-- Preset content (if selected in Step 3), labeled as "Preset Template — customize, do not copy verbatim"
-- Relevant lessons from lessons.json (if any)
-- Instruction: write both requirements.md and design.md, do NOT ask clarifying questions
+### 5.5. Consensus (only with --consensus)
 
-### Step 5.5: Threat Model Dispatch (Always On)
+Dispatch two `spec-consultant` agents in parallel (Software Architect: boundaries, scalability,
+integration, debt risk; Critical Analyst: missing edge cases, unstated assumptions, scope creep,
+untestable requirements; both must cite exact sections). Then dispatch `spec-planner` again with both
+reviews and "revise; do not ask questions; add `## Architect Review Notes` and `## Critic Review Notes`
+to design.md".
 
-After the spec-planner completes (writing both requirements.md and design.md), dispatch the **spec-threat-modeler** agent:
+### 6. Human gate (mandatory)
 
-- Pass: spec directory path, content of requirements.md, content of design.md
-- The agent writes `evidence/threat-model.md`, injects `[threat-model]` criteria into requirements.md, and updates `state.json.security.threat_model_status`
-- On agent error or timeout: append `{ "event": "threat_model_failed", "reason": "<error>" }` to the audit log and continue to the next step without blocking
+Read design.md and present: components, key decisions, data models, API contracts, risks, and the
+"Injected Criteria" from `evidence/threat-model.md` (ask approve/reject per criterion; on reject remove
+it from requirements.md and `$SS log <spec> threat_model_criterion_rejected --details "<text>"`).
+Then AskUserQuestion: Approve and continue / Request changes (back to step 4 with feedback) / Cancel.
 
-There is NO opt-out for this step.
+### 7. Verified interface registry
 
-### Step 5.6: Consensus Deliberation (only if --consensus)
+Extract every type, function, file path, table and endpoint that design.md references. Grep/Read the
+codebase for each and record the exact shape, signature and import path; mark missing ones `[NEW]`.
+Compile a `## Verified Interface Registry` code block. This is passed to the tasker as ground truth.
 
-If `--consensus` flag was provided:
+### 8. Tasks (spec-tasker, Sonnet)
 
-1. **Architect Review**: Dispatch spec-consultant agent with:
-   - Role: "Software Architect"
-   - Question: "Review this requirements.md and design.md. Evaluate: component boundaries, scalability, integration patterns, and technical debt risk. List specific concerns and improvement suggestions."
-   - Context: The full requirements.md and design.md content
+Dispatch `spec-tasker` with the spec dir and the registry: "read requirements.md and design.md, use the
+registry as ground truth, write tasks.md only (do not write state.json)". It returns a
+`PARALLEL_CONFIG_JSON` block; apply it with `$SS set <spec> parallel.shared_files '[...]'`,
+`parallel.generated_files` and `parallel.post_merge_commands`. Then:
 
-2. **Critic Review**: Dispatch spec-consultant agent (in parallel with Architect) with:
-   - Role: "Critical Analyst"
-   - Question: "Review this requirements.md and design.md as a devil's advocate. Find: missing edge cases, unstated assumptions, scope creep risks, and requirements that are untestable. Be specific — cite the exact requirement or design section."
-   - Context: The full requirements.md and design.md content
+```
+$SS sync-tasks <spec>          # waves (Kahn), state.json tasks, budget cap, referenced files
+$SS validate <spec>            # structural check; on errors re-dispatch the tasker with the output
+$SS integrity <spec> --update
+$SS detect-gates <spec>        # auto-detect lint/typecheck/test from the project manifest
+$SS phase <spec> spec
+```
 
-3. **Revision**: After both consultants respond, dispatch spec-planner agent again with:
-   - The original requirements.md and design.md
-   - Architect feedback
-   - Critic feedback
-   - Instruction: "Revise requirements.md and design.md to address the feedback. Do NOT ask questions — make the best judgment call for each concern. Add an `## Architect Review Notes` and `## Critic Review Notes` appendix to design.md summarizing what was addressed."
+### 9. Summary
 
-The output is the same requirements.md + design.md — downstream contracts are unchanged. The human gate in Step 6 still applies.
-
-### Step 6: MANDATORY HUMAN GATE
-
-**Do NOT skip this step.** After the spec-planner completes:
-
-1. Read the generated design.md
-2. Present a design summary to the user:
-   - Components identified
-   - Key architectural decisions
-   - Data models
-   - API contracts (if any)
-   - Risks identified
-   - Threat model findings: if evidence/threat-model.md exists, show the "Injected Criteria" section. For each [threat-model] criterion shown, ask the user to approve or reject it. For each rejection: remove it from requirements.md and append { "event": "threat_model_criterion_rejected", "criterion": "<text>", "reason": "<user reason>" } to the audit log.
-3. Ask via AskUserQuestion: "Review the design above. How would you like to proceed?"
-   - **Approve and continue to tasks** — proceed to Step 7
-   - **Request changes** — go back to spec-planner with the user's feedback
-   - **Cancel** — stop the workflow
-
-### Step 6.5: Build Interface Registry (MANDATORY before tasking)
-
-After design is approved, build a verified interface registry from the actual codebase. This prevents the tasker from guessing at interface shapes.
-
-1. **Read design.md** and extract every referenced:
-   - Type/interface name (e.g., `Transaction`, `UserProfile`, `ApiResponse`)
-   - Function/method name (e.g., `createTransaction`, `validateInput`)
-   - File path (e.g., `src/types/transaction.ts`, `src/services/auth.ts`)
-   - Database table/column reference
-   - API endpoint reference
-
-2. **For each referenced item**, use Grep/Read to find the actual definition in the codebase:
-   - Record exact type shapes with all field names and types
-   - Record exact function signatures (parameters, return types, async/sync)
-   - Record exact import paths as used by existing consumers
-   - If an item doesn't exist in the codebase, mark it as `[NEW]`
-
-3. **Compile the registry** as a markdown code block:
-   ```
-   ## Verified Interface Registry
-
-   // From src/types/transaction.ts
-   interface Transaction { id: string; debitAmount: number; creditAmount: number; status: "pending" | "completed" }
-
-   // From src/services/auth.ts
-   export async function validateToken(token: string): Promise<{ userId: string; role: Role }>
-
-   // [NEW] — to be created by this spec
-   interface AuditLog { ... }
-   ```
-
-4. **Pass this registry** to the spec-tasker agent in the next step. The tasker MUST use these exact shapes in task descriptions, not design.md paraphrases.
-
-### Step 7: Tasks Phase (spec-tasker agent)
-
-After design approval, delegate to the **spec-tasker** agent:
-
-- Feature name and spec directory path
-- The Verified Interface Registry from Step 6.5
-- Instruction: read requirements.md and design.md, use the provided Interface Registry as ground truth for all type shapes and function signatures, generate tasks.md, update state.json
-
-### Step 7.5: Auto-Calculate Budget
-
-After the tasker completes and `state.json.tasks` is populated:
-1. Count the total number of tasks in `state.json.tasks` (call it `task_count`)
-2. If `state.json.execution.budget_cap` is null: set it to `task_count * 50000`
-3. Log "Budget auto-calculated: <cap> tokens (<task_count> tasks x 50000)" to the audit log
-4. If `state.json.execution.budget_cap` is already non-null: do NOT overwrite it
-   (manually configured budgets take precedence)
-
-### Step 8: Compute Integrity Manifest
-
-After tasks are written:
-
-1. Compute SHA256 of requirements.md, design.md, tasks.md
-2. Update state.json `integrity` section with the hashes and current timestamp
-3. Record the current git SHA in `state.json.reproducibility.git_sha_start`
-4. **Populate `referenced_codebase_files`**: Scan design.md and tasks.md for all codebase file paths referenced (in `Files:` fields, import paths, interface source locations). Record these in `state.json.reproducibility.referenced_codebase_files`. This list is used for drift detection — if another spec modifies any of these files before this spec executes, the spec is stale and needs re-validation.
-
-### Step 9: Auto-Detect and Parse init.sh
-
-1. **Auto-detect project type** (if init.sh has no gates configured):
-
-   Check for project manifests and populate init.sh quality gates automatically:
-
-   | Manifest | Project Type | Default Gates |
-   |----------|-------------|---------------|
-   | `package.json` | Node.js | lint: `npm run lint` (if script exists), typecheck: `npx tsc --noEmit` (if tsconfig.json exists), test: `npm test` (if script exists) |
-   | `pyproject.toml` / `setup.py` | Python | lint: `ruff check .` or `flake8`, typecheck: `mypy .` (if in deps), test: `pytest` (if in deps) |
-   | `Cargo.toml` | Rust | lint: `cargo clippy -- -D warnings`, typecheck: `cargo check`, test: `cargo test` |
-   | `go.mod` | Go | lint: `golangci-lint run` (if installed), typecheck: `go vet ./...`, test: `go test ./...` |
-
-   For Node.js projects, read `package.json` `scripts` object to verify which scripts actually exist before setting gates.
-
-   Show the user what was detected:
-   ```
-   Detected Node.js project (from package.json).
-   Auto-configured quality gates:
-     lint: npm run lint
-     typecheck: npx tsc --noEmit
-     test: npm test
-
-   Edit .claude/specs/<name>/init.sh to customize.
-   ```
-
-2. **Parse init.sh**: Read quality gate commands (supporting both `gates=()` array and legacy individual variables). Update state.json `quality_gates` section.
-
-3. **Read budget_cap and human_checkpoint_interval** if defined.
-
-### Step 10: Summary
-
-Present:
-- Number of user stories created (distinguish user-stated vs [inferred])
-- Number of tasks created
-- Wave breakdown (how many waves, tasks per wave)
-- Key architectural decisions
-- Risks identified
-- Quality gates configured (or "Not configured — edit init.sh")
-- Next steps: suggest `/spec-validate` before implementation, then `/spec-exec` or `/spec-loop`
-
-Set `state.json.phase` to `"spec"` to record that spec creation is complete.
-Log "Phase set to 'spec'" to the audit log.
+Show: user stories (user-stated vs `[inferred]`), task count and wave breakdown (from `$SS summary`),
+key decisions, risks, the gates configured (or "edit init.sh"), and next steps:
+`/spec-validate`, then `/spec-loop` (or `/spec-exec`, `/spec-team`).

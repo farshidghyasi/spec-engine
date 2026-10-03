@@ -1,47 +1,28 @@
 ---
 name: spec-verify
 description: Run post-deployment smoke tests against a live environment
+argument-hint: "[spec-name] --url <target-url> [--scope full|quick]"
+disable-model-invocation: true
 allowed-tools:
   - Read
+  - Write
   - Glob
   - Grep
   - Bash
   - Agent
-  - AskUserQuestion
 ---
 
-# /spec-verify Command
-
-Post-deployment smoke tests against a live URL.
-
-## Usage
+# /spec-verify
 
 ```
-/spec-verify [spec-name] --url <target-url> [--scope full|quick]
+SS="python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec-state.py"
 ```
 
-## Phase Gate
-
-Before proceeding, read `state.json.phase`. If the field is absent, treat as `"spec"`.
-
-**Required phase**: `"released"` (order 6)
-**Phase order**: spec(1) -> validated(2) -> executed(3) -> accepted/audited(4) -> documented(5) -> released(6) -> verified(7) -> retro(8)
-
-If `state.json.phase` has not reached the required phase (compare numeric order), display:
-"Phase gate: /spec-verify requires phase 'released' to be complete. Current phase: '<CURRENT>'. Run /spec-release first."
-Stop execution. Do not proceed to any subsequent step.
-Do NOT expose state.json field names, filesystem paths, or stack traces in this message.
-
-## Workflow
-
-1. Validate URL format: must be `https?://[safe characters]`
-2. Locate spec, read requirements and design
-3. Health check: verify URL responds with HTTP 200
-4. Smoke tests based on scope:
-   - **quick**: App loads, key routes respond, no errors
-   - **full**: Test browser-accessible acceptance criteria via Playwright
-5. Write verification report to `.claude/specs/<name>/verification.md`
-6. Report PASS or FAIL
-
-After reporting results, set `state.json.phase` to `"verified"`.
-Log "Phase advanced to 'verified'" to the audit log.
+1. `$SS phase-gate <spec> released` (stop with its message on failure).
+2. Validate the URL: `^https?://[A-Za-z0-9._~:/?#@!$&'()*+,;=%-]+$`. Reject anything else.
+3. Health check: the URL must answer HTTP 200 (`curl -sS -o /dev/null -w '%{http_code}'`).
+4. Smoke tests: `quick` (default) loads the app and key routes and checks for errors; `full` exercises
+   the browser-accessible acceptance criteria from requirements.md (Playwright via `npx playwright`
+   when the project has it, otherwise curl).
+5. Write `verification.md` to the spec dir with PASS/FAIL per check, then report the overall result.
+6. `$SS phase <spec> verified`.

@@ -1,35 +1,24 @@
 ---
 name: spec-import
 description: Import a markdown document and convert it to spec requirements
+argument-hint: "<file-path> [--spec-name <name>]"
+disable-model-invocation: true
 allowed-tools:
   - Read
   - Write
   - Glob
   - Grep
+  - Bash
   - Agent
   - AskUserQuestion
 ---
 
-# /spec-import Command
+# /spec-import
 
-Import an existing document (PRD, RFC, design doc) and convert it to spec-engine format.
+Convert a PRD, RFC or design doc into spec-engine format.
 
-## Usage
-
-```
-/spec-import <file-path> [--spec-name <name>]
-```
-
-## Workflow
-
-1. Read the imported document
-2. If `--spec-name` not provided, ask the user for a name
-3. Validate spec name
-4. Create spec directory and copy templates
-5. Delegate to spec-planner agent with:
-   - The imported document content
-   - Instruction to extract requirements in EARS format
-   - Instruction to derive design from the document
-6. Run the mandatory human gate (present design summary for approval)
-7. Delegate to spec-tasker for task generation
-8. Compute integrity manifest
+1. Read the document. If `--spec-name` is missing, ask for one.
+2. `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec-state.py init <name>`.
+3. Dispatch `spec-planner` with the document, "extract requirements in EARS notation and derive
+   design.md from the document; do not ask questions".
+4. Continue from `/spec` step 5 (threat model) through step 9 exactly as written there.

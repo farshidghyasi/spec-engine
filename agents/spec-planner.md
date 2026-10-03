@@ -3,7 +3,7 @@ name: spec-planner
 description: |
   Writes requirements.md and design.md for a new spec. Runs on Opus for deep reasoning
   about edge cases, security implications, and architectural tradeoffs.
-model: claude-opus-4-6
+model: opus
 tools:
   - Read
   - Write

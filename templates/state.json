@@ -1,9 +1,8 @@
 {
-  "version": 1,
+  "version": 2,
   "spec_name": "{{SPEC_NAME}}",
   "created_at": "{{ISO_TIMESTAMP}}",
   "quick_mode": false,
-
   "phase": null,
 
   "integrity": {
@@ -14,7 +13,6 @@
   },
 
   "tasks": {},
-
   "waves": [],
 
   "parallel": {
@@ -31,48 +29,40 @@
     "total_tokens": 0,
     "budget_cap": null,
     "started_at": null,
-    "last_iteration_at": null,
-    "human_checkpoint_interval": 5,
-    "tasks_since_checkpoint": 0
+    "last_iteration_at": null
   },
 
   "reproducibility": {
-    "plugin_version": "2.0.0",
+    "plugin_version": "{{PLUGIN_VERSION}}",
     "model_versions": {},
     "git_sha_start": null,
-    "prompt_hashes": [],
     "referenced_codebase_files": []
   },
 
   "quality_gates": {
     "gates": [],
-    "lint_cmd": null,
-    "typecheck_cmd": null,
-    "test_cmd": null,
-    "dev_cmd": null,
-    "integration_cmd": null,
-    "baseline_errors": null,
-    "allowed_commands": [],
+    "baseline_errors": {},
     "last_regression_pass": null
   },
 
-  "lessons_applied": [],
-
-  "audit_log": [],
+  "validation": {
+    "status": null,
+    "last_pass": null,
+    "acknowledged_warnings": []
+  },
 
   "security": {
     "posture_score": null,
     "last_audit_date": null,
     "threat_model_status": "pending",
-    "findings": {
-      "critical": 0,
-      "high": 0,
-      "medium": 0
-    }
+    "findings": { "critical": 0, "high": 0, "medium": 0 }
   },
 
   "acceptance": {
     "status": null,
     "estimated_fix_rounds": null
-  }
+  },
+
+  "lessons_applied": [],
+  "audit_log": []
 }

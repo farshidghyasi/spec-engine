@@ -2,7 +2,8 @@
 name: spec-documenter
 description: |
   Generates user-facing documentation from spec files and implemented code.
-model: claude-sonnet-4-6
+model: sonnet
+maxTurns: 40
 tools:
   - Read
   - Write

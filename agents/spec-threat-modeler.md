@@ -3,9 +3,9 @@ name: spec-threat-modeler
 description: |
   Performs STRIDE threat analysis on design.md components. Dispatched by /spec
   at Step 5.5 (between spec-planner completion and the human gate). Writes
-  evidence/threat-model.md, injects [threat-model] EARS criteria into
-  requirements.md (capped at 10), and updates state.json.security.threat_model_status.
-model: claude-opus-4-6
+  evidence/threat-model.md and injects [threat-model] EARS criteria into
+  requirements.md (capped at 10). The orchestrator records the result in state.json.
+model: opus
 tools:
   - Read
   - Write
@@ -38,11 +38,8 @@ If **no components are found**:
    ```
    Threat model could not be generated: no components found in design.md
    ```
-2. Append an error audit log entry to `state.json`:
-   ```json
-   { "event": "threat_model_error", "reason": "no_components_found" }
-   ```
-3. **Stop immediately** — do NOT update `threat_model_status` to `"completed"` and do NOT proceed further.
+2. Return `threat_model_error: no_components_found` so the orchestrator logs it.
+3. **Stop immediately**.
 
 ### Step 2: STRIDE Analysis per Component
 
@@ -152,27 +149,10 @@ For each criterion being injected:
 
 Write the updated `requirements.md` back to `${SPEC_DIR}/requirements.md`.
 
-### Update state.json
+### Report to the orchestrator
 
-Read `${SPEC_DIR}/state.json`, then update:
-- Set `state.json.security.threat_model_status` from `"pending"` to `"completed"`
-- Append to `state.json.audit_log`:
-  ```json
-  {
-    "event": "threat_model_complete",
-    "threats_by_stride": {
-      "S": <count of Spoofing threats found>,
-      "T": <count of Tampering threats found>,
-      "R": <count of Repudiation threats found>,
-      "I": <count of Information Disclosure threats found>,
-      "D": <count of Denial of Service threats found>,
-      "E": <count of Elevation of Privilege threats found>
-    },
-    "injected_criteria": <count of criteria injected>
-  }
-  ```
-
-Write the updated `state.json` back to `${SPEC_DIR}/state.json`.
+End your response with one line the orchestrator records via `spec-state log`:
+`threat_model_complete: S=<n> T=<n> R=<n> I=<n> D=<n> E=<n> injected=<n>`
 
 ## Constraints
 
@@ -180,7 +160,6 @@ Write the updated `state.json` back to `${SPEC_DIR}/state.json`.
 WRITE TOOL SCOPE — before every Write call, verify the target path matches one of these EXACTLY:
 1. `${SPEC_DIR}/evidence/threat-model.md`
 2. `${SPEC_DIR}/requirements.md`
-3. `${SPEC_DIR}/state.json`
 
 If the path does not match, DO NOT WRITE. You have ZERO authorization to write to source code,
 test files, configuration files, agent definitions, skill definitions, or any file outside
@@ -191,14 +170,11 @@ modify application code.
 - Use the Write tool **only** for:
   1. `${SPEC_DIR}/evidence/threat-model.md` (create or overwrite)
   2. `${SPEC_DIR}/requirements.md` (append new criteria only — do not alter existing criteria)
-  3. `${SPEC_DIR}/state.json` (read-modify-write: update `security.threat_model_status` and append to `audit_log`)
-- Do NOT modify `design.md`, `tasks.md`, or any file outside the spec directory
+- Do NOT modify `design.md`, `tasks.md`, `state.json`, or any file outside the spec directory
 - Do NOT remove or reword any existing EARS criteria in `requirements.md`
 - When the user rejects criteria at the human gate, the /spec orchestrator handles removal — this agent only adds
 
 ## Error Handling
 
-- **No components in design.md**: Write error to `evidence/threat-model.md`, append error audit log, stop (do NOT set `threat_model_status` to `"completed"`)
-- **state.json missing `security` key**: Create the key with `{ "threat_model_status": "pending" }` before updating it
-- **state.json missing `audit_log` key**: Create the key as an empty array before appending
+- **No components in design.md**: write the error to `evidence/threat-model.md`, report `threat_model_error`, stop
 - **requirements.md has no user stories**: Append criteria at the end of the file under a new `## Security Requirements` section

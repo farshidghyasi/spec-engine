@@ -1,12 +1,14 @@
 ---
 name: spec-refine
 description: Refine requirements or design with change impact analysis
+disable-model-invocation: true
 allowed-tools:
   - Read
   - Write
   - Edit
   - Glob
   - Grep
+  - Bash
   - Agent
   - AskUserQuestion
 ---
@@ -60,12 +62,17 @@ Before applying any changes:
 
 - Delegate to spec-planner agent for requirement/design changes
 - Delegate to spec-tasker agent for task regeneration
-- **Preserve completed task status** for unaffected tasks
-- Mark affected completed tasks as "needs-review" in state.json
+- Tell the tasker which completed task IDs must keep their IDs and Files unless their requirement changed
 
-### Step 4: Update Integrity Manifest
+### Step 4: Sync State
 
-Recompute SHA256 hashes for all modified spec files. Update state.json.
+```
+SS="python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec-state.py"
+$SS sync-tasks <spec>          # keeps status of unchanged task IDs
+$SS integrity <spec> --update
+$SS phase <spec> spec          # changed specs must be re-validated
+```
+Mark affected completed tasks with `$SS set-task <spec> T-X --status needs-review`.
 
 ### Step 4.5: Show Spec Diff
 

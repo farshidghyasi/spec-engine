@@ -86,7 +86,7 @@ Spawn spec-consultant agents via the Agent tool when:
 
 **How to spawn a consultant:**
 
-Use the Agent tool with `subagent_type: "spec-driven:spec-consultant"`. In the prompt, provide:
+Use the Agent tool with `subagent_type: "spec-engine:spec-consultant"`. In the prompt, provide:
 
 1. **Expert Role**: The specific role (e.g., "Security Expert")
 2. **Domain Expertise**: What this expert specializes in

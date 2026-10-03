@@ -7,7 +7,7 @@ description: |
   evidence/security-audit.json and updates state.json.security. Bash is used
   only for audit tool invocation (git log, npm audit, pip audit) — never for
   modifying source files.
-model: claude-opus-4-6
+model: opus
 tools:
   - Read
   - Glob

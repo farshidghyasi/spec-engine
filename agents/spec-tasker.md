@@ -2,7 +2,8 @@
 name: spec-tasker
 description: |
   Breaks down completed spec into implementation tasks with dependency DAG and wave assignments.
-model: claude-sonnet-4-6
+model: sonnet
+maxTurns: 60
 tools:
   - Read
   - Write
@@ -248,7 +249,7 @@ If a task introduces a new service, provider, or dependency that other code will
 
 ## Self-Validation Pass (MANDATORY before returning)
 
-After writing tasks.md but BEFORE updating state.json, run these 9 checks against your own output. Fix any failures inline — do not return with known errors.
+After writing tasks.md, run these 9 checks against your own output. Fix any failures inline — do not return with known errors.
 
 ### Check 1: Interface Shape Accuracy
 For every type/interface referenced in a task description or code block, verify it matches your Verified Interfaces list from the Codebase Verification step. If you paraphrased or abbreviated a type shape, fix it to match the exact verified definition.
@@ -274,12 +275,11 @@ Scan every task description for numeric claims (e.g., "11 fields", "5 routes", "
 - Count the actual items in any accompanying code block or list
 - Fix the prose count to match the actual count, or fix the code block to match the intended count
 
-### Check 6: state.json Sync
-After writing tasks.md, verify that the state.json update will include:
-- Every task ID from tasks.md (no missing tasks)
-- Correct wave number for each task (matching the `Wave:` field in tasks.md)
-- Correct files array for each task (matching the `Files:` field in tasks.md)
-- No task IDs in state.json that don't exist in tasks.md
+### Check 6: Parseable Structure
+Every task is a `### T-<id>: <title>` heading followed by `- **Field**: value` lines for Status, Wave,
+Wired, Wire into, Dependencies, Covers, Files, Description, Acceptance Criteria. `Dependencies` is
+`none` or a comma-separated list of task IDs. `Files` is a comma-separated list of repo-relative paths.
+The orchestrator runs `spec-state sync-tasks`, which parses exactly this format and recomputes waves.
 
 ### Check 7: Threat-Model Coverage
 For every `[threat-model]` criterion in requirements.md:
@@ -302,6 +302,7 @@ Write `tasks.md` to the spec directory using template from `${CLAUDE_PLUGIN_ROOT
 
 Run the Self-Validation Pass above. Fix any issues found.
 
-Then update `state.json` in the spec directory:
-- Populate `tasks` object with each task ID, status "pending", wave number, wired=null, failures=0, and files array
-- Populate `waves` array with wave objects listing task IDs per wave
+Do NOT write state.json. The orchestrator derives it from tasks.md with `spec-state sync-tasks`
+(Kahn topological sort; it also corrects any `Wave:` field that disagrees with the dependency DAG).
+The three `state.json.parallel` lists above are the one exception: return them at the end of your
+response as a fenced `PARALLEL_CONFIG_JSON` block and the orchestrator applies them with `spec-state set`.

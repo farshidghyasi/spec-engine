@@ -2,6 +2,7 @@
 # lib/worktree.sh — Git worktree creation, reuse, and PR suggestion
 # Source this file; do not execute directly.
 
+# shellcheck disable=SC2034  # WORK_DIR is consumed by the sourcing script
 # setup_worktree(spec_name, use_worktree)
 # Creates or reuses a git worktree for isolated spec execution.
 # Sets WORK_DIR to the worktree path (or pwd if use_worktree is false).
