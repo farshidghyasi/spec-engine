@@ -3,7 +3,8 @@ name: spec-validator
 description: |
   Validates spec completeness, consistency, and implementation readiness.
   Checks all 5 EARS patterns, design traceability, and cross-document consistency.
-model: claude-sonnet-4-6
+model: sonnet
+maxTurns: 40
 tools:
   - Read
   - Glob

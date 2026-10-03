@@ -1,30 +1,28 @@
 ---
 name: spec-tasks
 description: Regenerate tasks from updated spec requirements and design
+argument-hint: "[spec-name]"
+disable-model-invocation: true
 allowed-tools:
   - Read
   - Write
   - Glob
   - Grep
+  - Bash
   - Agent
 ---
 
-# /spec-tasks Command
-
-Regenerate tasks from an updated spec. Preserves completed task status for unaffected tasks.
-
-## Usage
+# /spec-tasks
 
 ```
-/spec-tasks [spec-name]
+SS="python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec-state.py"
 ```
 
-## Workflow
-
-1. Locate spec directory, validate spec name
-2. Read current tasks.md and state.json to capture existing task statuses
-3. Delegate to spec-tasker agent to regenerate tasks from requirements.md and design.md
-4. After regeneration, restore completion status for tasks that were not affected by changes
-5. Recompute wave assignments
-6. Update state.json with new task list and waves
-7. Update integrity manifest
+1. Read the current tasks.md and `$SS summary <spec>` to capture which tasks are completed.
+2. Build the Verified Interface Registry as in `/spec` step 7.
+3. Dispatch `spec-tasker` to regenerate tasks.md from requirements.md and design.md. Tell it which
+   task IDs are completed and must keep their IDs, titles and Files unless the requirement changed.
+4. `$SS sync-tasks <spec>` (keeps status/wired/failures for task IDs that still exist) and
+   `$SS validate <spec>`; on errors re-dispatch the tasker with the output.
+5. `$SS integrity <spec> --update`. If the phase was `validated` or later, `$SS phase <spec> spec`
+   and suggest `/spec-validate`.

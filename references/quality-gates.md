@@ -1,188 +1,53 @@
 # Quality Gates Reference
 
-Quality gates run automatically after every implementation iteration in spec-exec and spec-loop. They catch defects deterministically — no AI judgment involved.
+Gates run after every wave via `spec-state run-gates`. They are deterministic: no AI judgment decides
+pass or fail, and the raw output is persisted to `evidence/tests/` for acceptance.
 
-## Gate Pipeline
-
-```
-Implementation complete
-        |
-        v
-   [1. Lint] ──fail──> [Debugger fix] ──retry──> [1. Lint]
-        |pass                              |fail(2x)
-        v                                  v
-   [2. Type Check] ──fail──> [Debugger]  [Task Rollback]
-        |pass                              |
-        v                                  v
-   [3. Regression] ──fail──> [Debugger]  [Wave Rollback]
-        |pass                              |
-        v                                  v
-   [4. Secret Scan] ──fail──> [Unstage]  [Human Escalation]
-        |pass
-        v
-   [Commit]
-```
-
-## Diff Mode (Baseline-Aware Gates)
-
-Quality gates should run in **diff mode** when pre-existing errors exist in the project. This prevents pre-existing failures from masking new errors introduced by agents.
-
-### How diff mode works:
-
-1. **Before execution starts**, record baseline error counts in `state.json.quality_gates.baseline_errors`:
-   ```json
-   {
-     "baseline_errors": {
-       "lint": 0,
-       "typecheck": 12,
-       "test": 3
-     }
-   }
-   ```
-
-2. **After each batch**, compare current error count against baseline:
-   - If error count **increased**: gate FAILS (new errors introduced)
-   - If error count **unchanged or decreased**: gate PASSES
-
-3. **File-scoped mode** (preferred when the tool supports it):
-   - Capture changed files: `git diff --name-only <pre-batch-SHA> HEAD`
-   - Run lint only on changed files: `eslint <changed-files>` or `ruff check <changed-files>`
-   - Type check must still run on the full project (types are global), but only fail on errors in changed files
-   - Secret scan only checks changed files
-
-### When to use diff mode:
-- Always, when `baseline_errors` is set in state.json
-- Automatically, when the first quality gate run detects pre-existing errors — record them as baseline and proceed
-
-## Gate 1: Lint
-
-- **Command**: `lint_cmd` from init.sh
-- **Auto-detected if not set**:
-  - Node.js: `npx eslint . --ext .ts,.tsx,.js,.jsx` or `npm run lint`
-  - Python: `ruff check .` or `pylint`
-  - Go: `golangci-lint run`
-  - Rust: `cargo clippy`
-- **Diff mode**: Run on changed files only if linter supports file arguments. Otherwise run full lint and compare error count against baseline.
-- **What it catches**: Style violations, unused imports, unreachable code, formatting issues
-- **On failure**: Debugger agent fixes, re-runs gate (max 2 retries)
-
-## Gate 2: Type Check
-
-- **Command**: `typecheck_cmd` from init.sh
-- **Auto-detected if not set**:
-  - TypeScript: `npx tsc --noEmit`
-  - Python: `mypy .` or `pyright`
-- **Diff mode**: Run full typecheck (types are global). Compare error count against baseline — fail only if count increased. If possible, filter output to show only errors in changed files.
-- **What it catches**: Type errors, hallucinated imports, wrong function signatures, missing modules
-- **On failure**: Debugger agent fixes, re-runs gate (max 2 retries)
-
-## Gate 3: Regression Test
-
-- **Command**: `test_cmd` from init.sh
-- **Runs the FULL test suite**, not just new tests
-- **Diff mode**: Compare test failure count against baseline. New failures = gate fails. Pre-existing failures (same test names) = gate passes.
-- **What it catches**: Breaking changes to previously verified tasks, integration failures
-- **On failure**: Debugger agent investigates which test broke and why, fixes (max 2 retries)
-
-## Gate 4: Secret Scan
-
-- **No command needed** — built into the commit step
-- **Checks staged files against**:
-  - `.env`, `.env.*`
-  - `*.pem`, `*.key`, `*.p12`, `*.pfx`
-  - `credentials*`, `secret*`, `token*`
-  - Files matching `.gitignore` patterns
-  - Strings matching patterns: `AKIA` (AWS), `-----BEGIN.*PRIVATE KEY-----`, base64 strings > 40 chars
-- **On failure**: Unstage the file, warn in audit log, continue
-
-## Gate 5: Post-Parallel Merge Checks (after parallel execution only)
-
-These additional checks run after merging parallel worktrees, before the standard gates:
-
-- **Circular import detection**: Check for circular dependencies introduced by parallel-authored modules. For JS/TS projects, use `madge --circular` or equivalent. For Python, check with `import-linter` or a custom script.
-- **Route collision detection**: If the project has an API router, check that no two routes conflict (e.g., `/users/:id` vs `/users/search`).
-- **Type stub cleanup**: Remove any `.d.ts` stub files generated for cross-worktree type resolution.
-- **Generated file regeneration**: Run commands from `state.json.parallel.post_merge_commands` (lockfile regen, codegen, cache clean).
-
-These checks are skipped when running in sequential mode.
-
-## Gate 6: Integration Smoke Test (post-wave)
-
-- **Command**: `integration_cmd` from state.json (configured per-project)
-- **Runs after each WAVE completes** (not each task — each wave)
-- **Purpose**: Verify that the system actually works end-to-end after merging parallel agent output
-- **Examples**:
-  - API project: `node scripts/smoke-test.js` — start server, hit key endpoints, verify 200s
-  - Frontend project: `npx playwright test smoke.spec.ts` — load main pages, verify no errors
-  - Full-stack: `docker compose up -d && ./scripts/e2e-smoke.sh`
-- **What it catches**: Parallel agents using incompatible interfaces, wired but non-functional code, runtime errors that pass type checking
-- **On failure**: **Wave-level rollback** — reset to pre-wave SHA, re-run the wave sequentially instead of in parallel
-- **Configuration** in state.json:
-  ```json
-  {
-    "quality_gates": {
-      "integration_cmd": "node scripts/smoke-test.js"
-    }
-  }
-  ```
-
-## Tiered Failure Recovery
-
-When quality gates fail repeatedly:
-
-### Tier 1: Retry (default)
-Spawn debugger agent to fix the specific issue. Re-run the failing gate. Max 2 retries per task.
-
-### Tier 2: Task Rollback
-If 2 retries fail, `git reset` to the pre-task checkpoint. Mark task as failed in state.json. Increment `tasks[task_id].failures`. Move to next task.
-
-### Tier 3: Wave Rollback
-If 3+ tasks in the same wave fail, `git reset` to the pre-wave checkpoint. Re-plan the wave or skip it.
-
-### Tier 4: Human Escalation
-After a wave-level rollback, pause execution. Present failure details to the user. Wait for human decision: retry, skip, or abort.
-
-## Auto-Detection Logic
-
-If init.sh does not define quality gate commands, the system attempts to detect them:
-
-1. Check `package.json` for `scripts.lint`, `scripts.typecheck`, `scripts.test`
-2. Check for `pyproject.toml` with `[tool.ruff]`, `[tool.mypy]`, `[tool.pytest]`
-3. Check for `Makefile` with `lint`, `test`, `check` targets
-4. Check for `Cargo.toml` (implies `cargo clippy` and `cargo test`)
-5. Check for `go.mod` (implies `go vet` and `go test ./...`)
-
-If no commands are detected, the gate is skipped with a warning logged to audit.
-
-## Configuring in init.sh
+## Configuration (`init.sh`)
 
 ```bash
-# Uncomment and customize for your project:
-# lint_cmd="npm run lint"
-# typecheck_cmd="npx tsc --noEmit"
-# test_cmd="npm test"
-# integration_cmd="node scripts/smoke-test.js"
+gates=("lint:npm run lint" "typecheck:npx tsc --noEmit" "test:npm test" "integration:node scripts/smoke.js")
 ```
 
-These values are read into `state.json.quality_gates` at execution start.
+- Any gate name works; `lint`, `typecheck`, `test` are conventional.
+- A gate named `integration` is skipped by the normal run and executed only with
+  `run-gates --only integration --integration` after the whole wave merged (smoke test).
+- `spec-state detect-gates` writes this array from `package.json` scripts, `pyproject.toml`,
+  `Cargo.toml`, `go.mod` or a `Makefile`.
+- Legacy variables `lint_cmd`, `typecheck_cmd`, `test_cmd`, `integration_cmd` are still read.
 
-## Configuring Baseline Errors
+## Diff mode (baseline-aware)
 
-If your project has pre-existing lint/typecheck/test failures, set the baseline on first run:
+Projects with pre-existing failures must not block on them. `spec-state run-gates --baseline` runs
+every gate once before execution starts and records the error count per gate in
+`state.json.quality_gates.baseline_errors`. Later runs fail a gate only when it exits non-zero **and**
+its error count exceeds the baseline. `scripts/spec-loop.sh` records the baseline automatically;
+in-session orchestration does it in execution-core Step 0.
 
-```bash
-# Run once to establish baseline:
-npx tsc --noEmit 2>&1 | grep -c "error TS"  # e.g., 12
-npm test 2>&1 | grep -c "failing"             # e.g., 3
+Error count = lines matching `error`, `FAIL`, `FAILED`, `FAILING` or `✗` (case-insensitive).
+That is a heuristic; when a tool supports file arguments or JSON output and you need precision,
+make the gate command itself scope to changed files.
+
+## Secret scan
+
+Built into `run-gates --changed <files>`: filenames `.env*`, `*.pem`, `*.key`, `*.p12`, `*.pfx`, and
+content patterns for AWS keys, private keys, GitHub tokens, OpenAI-style keys and Slack tokens.
+Findings are written as `path:line:pattern` only, never the matched value.
+
+## Pipeline per wave
+
+```
+run-gates (lint, typecheck, test, secret scan)  --fail-->  spec-debugger (max 2)  --still failing-->  task rollback, failures += 1
+verify-wired --apply (grep evidence)            --fail-->  spec-debugger (max 2)  --still failing-->  failures += 1
+run-gates --only integration --integration      --fail-->  wave rollback to pre-wave SHA, re-run sequentially
+spec-reviewer (Opus; quality + security)        --CRITICAL--> spec-debugger (max 2) --unresolved--> logged, release blocked
 ```
 
-Then set in state.json:
-```json
-{
-  "quality_gates": {
-    "baseline_errors": { "lint": 0, "typecheck": 12, "test": 3 }
-  }
-}
-```
+## Failure tiers
 
-Alternatively, spec-loop will auto-detect baselines on first gate run if it encounters pre-existing failures.
+1. **Retry**: debugger fixes, gate re-runs (2 attempts).
+2. **Task rollback**: `git checkout <pre_wave_sha> -- <task files>`, `set-task --status failed --fail`.
+3. **Wave rollback**: `git reset --hard <pre_wave_sha>` when the integration gate fails or 3+ tasks
+   in a wave fail; the wave re-runs with `batch --no-parallel`.
+4. **Auto-skip / decompose**: a task with 3 failures is split once by the tasker; if a sub-task fails
+   3 times it is skipped and logged. Execution never pauses for a human; review the audit log afterwards.

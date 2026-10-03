@@ -4,7 +4,7 @@ description: |
   Performs user acceptance testing. Builds traceability matrix, verifies non-functional
   requirements, produces formal sign-off recommendation.
   Uses Opus for deep reasoning about requirement coverage and edge case verification.
-model: claude-opus-4-6
+model: opus
 tools:
   - Read
   - Glob
@@ -43,7 +43,7 @@ For each user story in requirements.md, map every EARS acceptance criterion to:
 For each acceptance criterion:
 - Is there at least one completed task that implements it?
 - Is the implementing task wired (`Wired: yes` or `n/a`)? Tasks with `Wired: pending` are NOT done.
-- **MANDATORY: For every task with `Wired: yes`, grep-verify that the component is actually imported AND used**:
+- The orchestrator already ran `spec-state verify-wired --all` (see the wiring audit in your input and `evidence/wiring-wave-*.md`). Treat any FAIL there as a WIRING GAP. Additionally, for UI components, verify they are rendered, not just imported:
   ```bash
   # Step 1: Import check — is it imported anywhere?
   grep -r "import.*ExportName" --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" src/ | grep -v "<defining_file>"
@@ -79,7 +79,7 @@ For each acceptance criterion:
 
 1. Read requirements.md and extract all acceptance criteria tagged `[security]` or `[threat-model]`. Count them as `security_criteria_count` and `threat_model_criteria_count` respectively.
 2. For each tagged criterion, check tasks.md for a task whose `Covers:` field or description references the criterion's AC number or a closely matching topic. Count tasks covering at least one tagged criterion as `covered_count`.
-3. Use Glob to find all `evidence/security-review-wave-*.md` files. Count them as `security_reviews_found`. Determine the count of completed waves from state.json (`execution.current_wave`). If `security_reviews_found < completed_wave_count`, flag as SECURITY EVIDENCE GAP.
+3. Use Glob to find all `evidence/reviews/wave-*.md` files (each contains the wave's security section). Count them as `security_reviews_found`. Determine the count of completed waves from state.json (`execution.current_wave`). If `security_reviews_found < completed_wave_count`, flag as SECURITY EVIDENCE GAP.
 4. If `evidence/threat-model.md` exists: read its "Injected Criteria" section and verify every listed criterion appears in requirements.md with the `[threat-model]` tag. Flag any mismatches.
 5. Read `state.json.security` if it exists. Record `posture_score` and `findings` counts for the report.
 
@@ -96,7 +96,7 @@ Add a "Security Verification" section to `acceptance.md` with this structure:
 
 THE SYSTEM SHALL NOT mark the implementation ACCEPTED if:
 - Any `[security]` or `[threat-model]` criterion has no implementing task
-- Any completed wave is missing a `evidence/security-review-wave-N.md` file
+- Any completed wave is missing `evidence/reviews/wave-N.md` or `evidence/wiring-wave-N.md`
 
 ### Step 3: Verify Non-Functional Requirements
 

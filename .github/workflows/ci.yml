@@ -1,0 +1,26 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install shellcheck
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
+      - name: Shell syntax and lint
+        run: |
+          bash -n scripts/*.sh scripts/hooks/*.sh scripts/lib/*.sh templates/init.sh templates/hooks/*.sh
+          shellcheck -x scripts/*.sh scripts/hooks/*.sh scripts/lib/*.sh templates/hooks/*.sh
+      - name: JSON validity
+        run: |
+          for f in hooks/hooks.json .claude-plugin/*.json templates/state.json; do
+            python3 -c "import json,sys; json.load(open('$f'))" && echo "ok $f"
+          done
+      - name: Plugin consistency
+        run: python3 tests/check_plugin.py
+      - name: spec-state tests
+        run: python3 -m unittest discover -s tests -v

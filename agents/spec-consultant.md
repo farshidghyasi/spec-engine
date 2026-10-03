@@ -4,7 +4,7 @@ description: |
   Domain expert consultant for brainstorming sessions. Receives a persona and
   specific question, returns structured analysis.
   Uses Opus for deeper domain reasoning and more nuanced expert analysis.
-model: claude-opus-4-6
+model: opus
 tools:
   - Read
   - Glob

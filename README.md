@@ -1,478 +1,196 @@
 # spec-engine
 
-A Claude Code plugin for spec-driven development. Guides features through a structured pipeline from requirements to release, with wave-based execution, quality gates, and continuous learning.
+A Claude Code plugin for spec-driven development. Features go through a structured pipeline from
+requirements to release, with wave-based parallel execution, deterministic quality gates, grep-verified
+wiring, and a feedback loop of lessons.
 
-Inspired by [Kiro](https://kiro.dev)'s spec-driven development approach and built as a clean-room rewrite of the [spec-driven-plugin](https://github.com/habib0x0/spec-driven-plugin).
-
-## What It Does
+Inspired by [Kiro](https://kiro.dev)'s spec workflow and descended from
+[spec-driven-plugin](https://github.com/habib0x0/spec-driven-plugin).
 
 ```
-/spec <name>  -->  Requirements (EARS)  -->  Design (Architecture)  -->  Tasks (DAG)
-                        |                        |                        |
-                   Interactive              Threat Model             Wave Assignment
-                   gathering               (STRIDE analysis)         (topological sort)
-                   + auto security             |
-                     EARS criteria         Human Gate
-                                           (approve design +
-                                            threat findings)
-                                                                         |
-                                                                         v
-/spec-loop    -->  Wave Execution  -->  Quality Gates  -->  Security  -->  Commit  -->  Repeat
-                   (batch 2-3 tasks)    (lint, typecheck,    Review
-                                         regression, secrets) (parallel)
-                                                                         |
-                                                                         v
-/spec-security-audit  -->  /spec-accept  -->  /spec-docs  -->  /spec-release  -->  /spec-retro
-  (15-phase CSO)             (UAT + security       (security gate)    (lessons.json)
-                               evidence check)
+/spec <name>   Requirements (EARS) -> Design -> Threat model -> Human gate -> Tasks (wave DAG)
+/spec-validate EARS, traceability, codebase accuracy (auto-fix)
+/spec-loop     per wave: parallel implementers -> gates (diff mode) -> wiring grep -> Opus review -> commit
+/spec-accept   /spec-security-audit  /spec-docs  /spec-release  /spec-verify  /spec-retro
 ```
 
-## Installation
+## Install
 
 ```bash
-# Add as a Claude Code plugin
-claude plugins add /path/to/spec-engine
+claude plugin install spec-engine@<marketplace>     # from a marketplace that lists this repo
+# or, for local development, add this directory as a marketplace in `/plugin` and install from it
 ```
 
-## Quick Start
+Requires `python3` (3.9+, stdlib only) and `git`.
 
-```bash
-# 1. Create a spec (interactive)
-/spec user-authentication
+## Quick start
 
-# 2. Validate before implementation
+```
+/spec user-authentication     # interactive; approve the design at the human gate
 /spec-validate
-
-# 3. Execute (choose one)
-/spec-exec                    # Single iteration
-/spec-loop                    # Full loop with wave batching
-/spec-team                    # 4-agent team (Implementer + Tester + Reviewer + Debugger)
-
-# 4. After implementation
-/spec-security-audit          # 15-phase security audit (must run before acceptance)
-/spec-accept                  # User acceptance testing (verifies security evidence)
-/spec-docs                    # Generate documentation
-/spec-release --tag           # Release notes + git tag (blocked by CRITICAL findings)
-/spec-retro                   # Retrospective + lessons learned
+/spec-loop                    # or /spec-exec for one wave, /spec-team for a tester per task
+/spec-security-audit
+/spec-accept
+/spec-docs
+/spec-release --tag
+/spec-retro
 ```
+
+Small change? `/spec-quick "fix the login button alignment on mobile"` creates a tasks-only spec and
+runs it with the same gates and wiring verification.
 
 ## Commands
 
 | Command | Description |
 |---------|-------------|
-| `/spec <name>` | Create a new spec with interactive requirements gathering |
-| `/spec-brainstorm [idea]` | Explore a feature idea with optional domain experts |
-| `/spec-refine` | Update requirements/design with change impact analysis |
-| `/spec-tasks` | Regenerate tasks from updated spec |
-| `/spec-validate` | Validate completeness and consistency |
-| `/spec-status` | Progress dashboard with cost, wiring, and security health |
-| `/spec-dashboard` | Portfolio view of all specs with phase completion and security scores |
-| `/spec-exec` | Execute one iteration with quality gates |
-| `/spec-loop [--dry-run]` | Wave-based execution loop |
-| `/spec-team` | 4-agent team execution |
-| `/spec-accept` | User acceptance testing |
-| `/spec-docs` | Generate documentation |
-| `/spec-security-audit` | 15-phase CSO security audit (daily or comprehensive mode) |
-| `/spec-release` | Release notes and deployment checklist (security gate) |
-| `/spec-verify --url <url>` | Post-deployment smoke tests |
-| `/spec-retro` | Retrospective with lessons feedback loop |
-| `/spec-import <file>` | Import PRD/RFC into spec format |
+| `/spec <name> [--consensus]` | Create a spec: interactive requirements, STRIDE threat model, mandatory design gate, task DAG |
+| `/spec-quick <description>` | Tasks-only spec for 1-3 files, executed immediately |
+| `/spec-brainstorm [idea]` | Explore an idea; optional domain-expert consultants (Opus) |
+| `/spec-import <file>` | Convert a PRD/RFC/design doc into spec format |
+| `/spec-refine` / `/spec-tasks` | Change requirements with impact analysis / regenerate tasks |
+| `/spec-validate [--no-fix]` | Validate; auto-fix spec files against the real codebase |
+| `/spec-exec` | Execute one wave batch |
+| `/spec-loop [--dry-run] [--max-iterations N] [--no-parallel]` | Execute all waves autonomously |
+| `/spec-team` | `/spec-loop` plus an independent tester per task |
+| `/spec-status` / `/spec-dashboard [--deep] [--deps]` / `/spec-session` | Progress for one spec / all specs / guided mode |
+| `/spec-accept` | Acceptance with traceability matrix and wiring audit |
+| `/spec-security-audit [--comprehensive]` | 15-phase security audit, posture score |
+| `/spec-docs` / `/spec-release [--tag] [--force]` / `/spec-verify --url` / `/spec-retro` | Docs, release (blocked by CRITICAL findings), smoke tests, lessons |
 
-## Architecture
+## How it works
 
-### Model Routing
+### The state CLI
 
-Each agent uses the model best suited to its task nature:
-
-| Agent | Model | Why |
-|-------|-------|-----|
-| spec-planner | Opus | Deep reasoning for edge cases, security, architecture tradeoffs |
-| spec-reviewer | Opus | Security analysis, subtle bugs, cross-task consistency |
-| spec-security-reviewer | Opus | Read-only security-focused code review (parallel with reviewer) |
-| spec-threat-modeler | Opus | STRIDE analysis requires deep reasoning about attack vectors |
-| spec-security-auditor | Opus | 15-phase security audit requires judgment about vulnerability patterns |
-| spec-acceptor | Opus | Formal sign-off requires deep judgment about requirement coverage |
-| spec-consultant | Opus | Domain expertise benefits from deeper, more nuanced analysis |
-| spec-implementer | Sonnet | Fast code generation, parallelizable with file boundaries |
-| spec-tester | Sonnet | Test execution, cross-task regression detection |
-| spec-tasker | Sonnet | Structured decomposition with file ownership assignment |
-| spec-debugger | Sonnet | Targeted fixes, wiring repair |
-| spec-documenter | Sonnet | Documentation generation |
-| spec-validator | Sonnet | Checklist-based verification |
-
-**Principle**: Opus for judgment and reasoning. Sonnet for structured execution.
-
-### Wave-Based Execution with Parallel Agents
-
-Tasks form a dependency DAG. Topological sort (Kahn's algorithm) assigns each task to a wave. Independent tasks in the same wave with non-overlapping file ownership run in **parallel** using isolated git worktrees, reducing both iterations (3-5x) and wall-clock time.
+`scripts/spec-state.py` does every deterministic step so it is done the same way every time:
+spec scaffolding, SHA256 integrity, Kahn wave assignment from `tasks.md`, parallel-group planning by
+file ownership, structural validation, drift detection, phase and dependency gates, quality gates in
+diff mode with evidence files, secret scan, grep-based wiring verification, import manifests, token
+accounting, lifecycle hooks, status and dashboard rendering. Skills and agents only orchestrate and
+judge. `tasks.md` is the human-readable source of structure; `state.json` is derived from it and holds
+runtime fields.
 
 ```
-Wave 0: [T-1]                    Setup (sequential)
-Wave 1: [T-2, T-3]              Core — PARALLEL (no file overlap)
-         [T-4]                   Core — sequential (shares files with T-2)
-Wave 2: [T-5, T-6]              Integration — PARALLEL (no file overlap)
-Wave 3: [T-7]                    E2E testing (sequential)
-Wave 4: [T-8]                    Polish (sequential)
+python3 scripts/spec-state.py -h
 ```
 
-Each task declares a `Files` field listing which files it will create or modify. The tasker ensures no two tasks in the same parallel group touch the same files.
+### Execution core
 
-### Deprecated Field Detection
+`/spec-exec`, `/spec-loop`, `/spec-team` and `/spec-quick` all follow
+[`references/execution-core.md`](references/execution-core.md):
 
-When a spec changes shared types, DB columns, or renames/replaces fields, references outside the spec's file boundaries can get missed. spec-engine detects this at four pipeline stages:
+1. Preflight: phase gate, cross-spec dependencies, drift, structure, integrity, gate detection.
+2. `batch`: pending tasks of the current wave split into parallel groups (disjoint `Files`,
+   `shared_files` always sequential, failed tasks sequential).
+3. Implementers (Sonnet) run in isolated worktrees with only their task, their file boundaries and the
+   import manifest of completed work. After each one: commit, shared-file revert, `check-files`.
+4. `run-gates` (lint, typecheck, test, secret scan) in diff mode; `verify-wired --apply`; integration
+   smoke test if configured. Failures go to the debugger (2 attempts) then task or wave rollback.
+5. One Opus review per wave covering quality, architecture, cross-task consistency and security.
+   CRITICAL findings dispatch the debugger. In team mode a tester verifies each task first.
+6. Commit with state.json in the same commit; stuck tasks (3 failures) are decomposed once, then skipped.
 
-1. **Planner** — before writing design.md, greps for all consumers of any changed field and writes the blast radius to the risk section
-2. **Tasker** — tasks that rename, delete, or change field types declare it via a `Deprecates` metadata field. The tasker auto-generates a final-wave sweep task to update all references
-3. **Validator** — parses `Deprecates` fields, greps the codebase, and reports ERROR if references exist outside the spec's file boundaries with no sweep task covering them
-4. **Acceptor** — post-implementation, diffs actual changed files and greps for surviving stale references. Any survivor causes REJECT
+### Agent fan-out through the Workflow tool
 
-The `Deprecates` field supports three formats:
+Implementers for a wave are launched by `workflows/wave.js` through Claude Code's Workflow tool:
+deterministic JavaScript decides the fan-out (parallel within a file-disjoint group, groups in order,
+worktree isolation only when two or more tasks run together) and every implementer returns a
+schema-validated result (files changed, commit, branch, test output, wiring evidence) instead of free
+text. `workflows/verify.js` runs the per-task testers (team mode) and the single Opus reviewer the
+same way. The skills fall back to the Agent tool when Workflow is unavailable in a session.
 
-```
-Rename:      Deprecates: <type>.<oldField> -> <type>.<newField>
-Deletion:    Deprecates: <type>.<oldField> -> [removed]
-Type change: Deprecates: <type>.<field> (<oldType> -> <newType>)
-```
+### Enforced, not requested
 
-### Quality Gates
+Three plugin hooks (`hooks/hooks.json`) make the rules structural:
 
-After every implementation iteration, four automated gates run:
+- **Stop hook**: a session cannot end while a spec is executing with tasks in progress or completed
+  but unwired.
+- **PreToolUse hook**: `git commit` is denied while `state.json` has unstaged changes, and spec-state
+  calls are auto-allowed so state writes never prompt.
+- **SessionStart hook**: when the project has specs, the dashboard is placed in context so every
+  session starts knowing what is in flight.
 
-1. **Lint** — catches style violations, unused imports
-2. **Type Check** — catches type errors, hallucinated imports
-3. **Regression Test** — runs the full test suite
-4. **Secret Scan** — prevents accidental credential commits
+Execution agents carry `maxTurns` caps, side-effecting skills are `disable-model-invocation: true`
+(only you can start them), and read-only agents stay read-only with the orchestrator persisting output.
 
-Gates are auto-detected from project config (package.json, pyproject.toml, Makefile, Cargo.toml, go.mod) or configured in `init.sh`:
+Wiring and file existence are decided by grep and stat, never by an agent's self-report.
 
-```bash
-lint_cmd="npm run lint"
-typecheck_cmd="npx tsc --noEmit"
-test_cmd="npm test"
-```
+### Security pipeline
 
-Gates run in **diff mode** when pre-existing errors exist — comparing error counts against a baseline to fail only on NEW errors. All gate output is persisted to `evidence/tests/wave-N-{lint,typecheck,tests}.txt` so acceptance testing has evidence to verify against.
+- The planner generates `[security]` EARS criteria per detected category (API, storage, integrations,
+  user input) plus a baseline "no internal error details" criterion.
+- The threat modeler runs STRIDE on the design and injects up to 10 `[threat-model]` criteria, shown at
+  the human gate for approve/reject.
+- The per-wave Opus review greps changed files for injection, auth gaps, secrets, unsafe eval, SSRF and
+  unvetted dependencies; CRITICAL requires two confirming signals.
+- `/spec-security-audit` runs a 15-phase audit scoped to `git_sha_start..HEAD`; posture score
+  `100 - 20*CRITICAL - 5*HIGH - 2*MEDIUM`. `/spec-release` blocks on CRITICAL unless `--force` (logged).
+- Security agents never record credential values. Reviewer and auditor cannot modify code.
 
-Failure triggers a tiered recovery: Debugger retry (2x) -> Task rollback -> Wave rollback -> Human escalation.
-
-### Validation
-
-`/spec-validate` runs the spec-validator agent against a fixed severity rubric — not subjective judgment. Issues are classified by enumerated rules:
-
-- **ERROR** (blocks implementation): requirement with zero task coverage, circular DAG dependencies, state.json/tasks.md ID mismatches, exact value contradictions between documents, missing dependencies, API schema vs codebase type mismatches, deprecated field with uncovered references outside spec file boundaries
-- **WARNING** (reported, non-blocking): naming concerns, missing annotations, ambiguous wording, missing error-path ACs, tasks that modify shared types without a `Deprecates` field
-
-Every reported issue must cite which rubric rule it matches (via a mandatory `Rule:` field). If the agent can't name a rule, the issue is not reportable. This makes validation behave like a linter (deterministic, stable output) rather than a reviewer (subjective, different every run).
-
-**Efficiency features**: A validation fingerprint skips re-running the validator entirely when spec files haven't changed since the last pass. Acknowledged warnings are stored in state.json and suppressed on subsequent runs unless the underlying spec text changed. Auto-fix dispatches the debugger but verifies fixes syntactically instead of re-running the full validator (preventing the discovery of new issues mid-run).
-
-### Wiring Tracking
-
-Every task tracks a `Wired` field alongside its status:
-
-- **pending** — Code not yet connected to the application
-- **yes** — Code is reachable from the app's entry point
-- **n/a** — Infrastructure task with nothing to wire
-- **deferred** — Wire target is owned by a different task in a later wave (tracked via `wired_by` field in state.json)
-
-This prevents the most common failure mode in AI-driven development: code that exists but isn't connected. The implementer must set it, the tester refuses to test without it, the reviewer rejects if pending, and the acceptor reports integration health. A task is not complete until `Status: completed` AND `Wired: yes` (or `n/a`).
-
-**Wire into field**: Every component creation task declares a `Wire into:` field specifying the exact file where it must be imported (e.g., `Wire into: src/app.tsx (router)`). This target file is included in the task's `Files` array so the implementer owns the wiring change.
-
-**Deferred wiring**: When a task's wire target is a shared file (e.g., router, navigation config) owned by a later-wave integration task, the tasker sets `Wired: deferred(T-X)` where T-X is the integration task. The integration task declares a `Resolves` field listing which upstream tasks it wires. After T-X completes, the orchestrator greps for imports and resolves the deferred tasks to `yes` or downgrades to `pending` if wiring is missing. Deferred tasks do not block wave advancement, but any task still deferred at spec completion is flagged as an error.
-
-**Grep-based verification**: Wired status is never trusted from agent self-reports. After each wave, spec-loop greps the entire codebase for actual imports of each component's exports. Components with zero imports are downgraded to `wired: "pending"` regardless of what the agent claimed. A post-wave **wiring resolution pass** checks completed integration tasks and resolves any deferred upstream tasks. spec-accept runs an independent wiring audit before acceptance testing. This verification is enforced with a `<HARD-GATE>` block that prevents any task from being marked complete without grep evidence — matching the enforcement patterns used in superpowers skills.
-
-### Parallel Execution Safety
-
-Running multiple AI agents in parallel introduces subtle failure modes. spec-engine addresses these with a layered safety model:
-
-**File Ownership**: Each task declares which files it will create/modify. The tasker validates no overlap within a wave. Parallel agents are constrained to their assigned files only.
-
-**Shared Files Registry**: Files that inherently need modification by multiple tasks (barrel/index files, `package.json`, lock files, config files, routers, test setup files, Dockerfiles) are classified as "shared" and excluded from parallel execution. They are modified in a sequential reconciliation step after parallel agents complete.
-
-**Add-Only Rule**: Parallel agents may only ADD new code — they cannot refactor existing function signatures, rename variables, or restructure existing modules. This prevents the case where one agent changes an interface that another agent depends on.
-
-**Signature Change Propagation**: When a task modifies an existing function's signature (parameters, return type, sync to async), the tasker includes a grep instruction and lists all known caller files. The implementer must grep for ALL callers before implementing — not just the ones listed — and flag any boundary violations via `SIGNATURE BREAK` handoff notes for sequential follow-up.
-
-**Contract-First Design**: Shared types and interfaces are produced in Wave 0 before any parallel execution begins. All subsequent tasks import from these contracts, preventing type disagreements between parallel agents.
-
-**Import Dependency Validation**: The tasker validates that if task B imports from files in task A's `Files` list, then B must depend on A. Tasks with cross-imports cannot be in the same parallel group.
-
-**Atomic Merge**: Before merging any worktree, the system records the pre-merge HEAD SHA. If ANY merge fails, ALL merges in the group are reverted and the system falls back to sequential execution.
-
-**Post-Merge Regeneration**: After merging parallel results, the system regenerates lock files, runs codegen, and cleans caches before running quality gates. This handles artifacts that are fundamentally incompatible with parallel execution (lockfiles, generated code, build caches).
-
-**Cross-Task Consistency Review**: The Opus reviewer reviews the FULL wave's changes together (not per-task) to catch inconsistencies: interface mismatches, naming convention drift, error handling pattern divergence, and circular imports.
-
-**Test Data Isolation**: Each task's tests use unique, namespaced test data (prefixed with task ID or UUIDs). No global mocks in shared setup files. Per-test setup/teardown only.
-
-**No Formatters in Worktrees**: Code formatters run ONCE after all parallel merges are complete, not in individual worktrees. This prevents cosmetic changes from creating merge conflicts.
-
-**Build vs. Extract Separation**: Complex components are split into implementation tasks ("make it work") and extraction tasks ("make it clean") in later waves. This prevents agents from inlining everything into monolithic files. A 500-line file size guard auto-creates extraction tasks if the tasker misses one.
-
-### Agent Teams (`/spec-team`)
-
-Five specialized agents with separation of concerns:
+### Model routing
 
 | Agent | Model | Role |
 |-------|-------|------|
-| Implementer | Sonnet | Writes code + persistent tests + wiring |
-| Tester | Sonnet | Checks wiring first, then verifies end-to-end + error paths |
-| Reviewer | Opus | Read-only quality/architecture/wiring review |
-| Security Reviewer | Opus | Read-only security-focused review (parallel with Reviewer) |
-| Debugger | Sonnet | Fixes issues (max 2 retries, checks wiring first) |
+| spec-planner, spec-threat-modeler, spec-consultant | Opus | Requirements, design, STRIDE, expert review |
+| spec-reviewer, spec-security-auditor, spec-acceptor | Opus | Per-wave review, 15-phase audit, acceptance |
+| spec-tasker, spec-implementer, spec-tester, spec-debugger, spec-documenter, spec-validator | Sonnet | Structured execution |
 
-Agents communicate via lightweight handoff files (~200 tokens each) instead of full context duplication, reducing token usage by ~85%.
+### Feedback loop
 
-### Post-Task Verification
+`/spec-retro` writes lessons to `.claude/specs/lessons.json`. `/spec` and `/spec-brainstorm` surface
+them; `/spec-validate` turns pattern lessons into warnings and runs `enforceable` checks.
 
-After every task completes, spec-loop runs mandatory verification enforced with `<HARD-GATE>` blocks and red flags lists (superpowers-style enforcement patterns that prevent agent rationalization):
-
-1. **Auto-commit** — the FIRST post-agent action, before any other check. Enforced with a `<HARD-GATE>` because agents routinely skip commits.
-2. **File existence check** — stats every file in the task's `Files` array. Missing files mark the task as failed. Agent self-reports are never trusted.
-3. **Max file size guard** — files exceeding 500 lines trigger auto-creation of extraction tasks in the next wave, preventing monolithic components.
-4. **Audit log append** — every task start, completion, failure, wave transition, and gate result is logged. An empty audit log is treated as a bug.
-5. **Evidence persistence** — gate output is written to `evidence/tests/` for downstream acceptance testing.
-
-### State Management
-
-`state.json` is the execution brain — a machine-readable file (~200 tokens) that tracks:
-
-- Task statuses, wave assignments, and wiring status
-- Token usage and budget cap
-- Quality gate results
-- Security state (posture score, threat model status, findings by severity)
-- Integrity manifest (SHA256 of spec files)
-- Reproducibility data (model versions, git SHA)
-- Audit log (mandatory — written at every transition, not batched)
-
-Execution can be interrupted and resumed across sessions with zero re-orientation cost.
-
-### Security Model
-
-- **No `--dangerously-skip-permissions`** — each agent has only the tools it needs. Execution skills run fully autonomously by default without needing elevated permissions.
-- **Spec integrity verification** — SHA256 manifests checked before execution
-- **Secret-aware staging** — sensitive files detected and excluded from commits
-- **Input validation** — strict regex on spec names, URL validation
-- **Read-only reviewer** — the Opus reviewer cannot modify code, only read and report
-- **Audit logging** — all execution events are logged (enforced at every transition, not optional)
-
-### Integrated Security Pipeline
-
-Four always-on security capabilities are built into the spec-engine pipeline. All are automatic with no opt-out.
-
-#### 1. Automatic Security EARS Criteria
-
-The planner detects feature categories and auto-generates `[security]`-tagged EARS criteria:
-
-| Category | Detected When | Generated Criteria |
-|----------|--------------|-------------------|
-| API Endpoints | REST endpoints, GraphQL, webhooks, HTTP handlers | Auth enforcement, rate limiting, input validation |
-| Data Storage | Database, file system, cache, external store | Encryption at rest, access control |
-| External Integrations | External HTTP services, third-party APIs | TLS verification, signature verification |
-| User Input | Text, file uploads, form fields, query parameters | Injection prevention, input sanitization |
-
-A baseline Ubiquitous criterion ("SHALL NOT expose internal error details") is always generated. A `## Security Context` section documents which categories triggered which criteria.
-
-#### 2. Parallel Security Reviewer
-
-After each wave, a read-only security reviewer (Opus) runs **in parallel** with the existing code reviewer. It checks changed files for:
-
-- Injection patterns (SQL, command, template)
-- Authentication gaps (unprotected endpoints)
-- Secrets in code (AWS keys, API tokens, GitHub tokens)
-- Unsafe dynamic code evaluation (eval, Function constructor)
-- SSRF vectors (unvalidated URLs in HTTP calls)
-- Dependency vulnerabilities (unvetted imports)
-
-CRITICAL findings (requiring 2+ confirming grep patterns) dispatch the debugger automatically. The reviewer is strictly read-only (`tools: [Read, Glob, Grep]`) — the orchestrator persists its output files.
-
-#### 3. Automatic STRIDE Threat Modeling
-
-After the planner writes design.md (Step 5.5), the threat modeler performs STRIDE analysis:
-
-- **S**poofing, **T**ampering, **R**epudiation, **I**nformation Disclosure, **D**enial of Service, **E**levation of Privilege
-- Identifies trust boundaries between components
-- Enumerates attack surface (entry points, data stores, external integrations)
-- Injects `[threat-model]` EARS criteria (capped at 10) into requirements.md
-- Results shown at the human gate for per-criterion approve/reject
-
-#### 4. 15-Phase Security Audit (`/spec-security-audit`)
-
-A manual command that runs a comprehensive CSO audit scoped to files changed since the spec began:
-
-| Phase | Name | Checks |
-|-------|------|--------|
-| 0 | Stack Detection | Languages, frameworks, entry points |
-| 1 | Attack Surface Census | Endpoints, auth boundaries, upload handlers |
-| 2 | Secrets Archaeology | Git history for credential patterns |
-| 3 | Dependency Supply Chain | npm/pip/cargo audit, lockfile integrity |
-| 4 | CI/CD Pipeline Security | Unpinned Actions, script injection |
-| 5 | Infrastructure Shadow Surface | Docker, IaC misconfigurations |
-| 6 | Webhook and Integration Audit | Signature validation, TLS |
-| 7 | LLM/AI Security | Prompt injection, eval of LLM output |
-| 8 | Skill Supply Chain | Overly broad tool permissions |
-| 9 | OWASP Top 10 | A01-A10 pattern matching |
-| 10 | STRIDE Threat Modeling | Cross-reference with threat model |
-| 11 | Data Classification | PII, credentials, financial, health data |
-| 12 | False Positive Filtering | Confidence gate (8/10 daily, 2/10 comprehensive) |
-| 13 | Findings Report | Summary with trend comparison |
-| 14 | Save Report | evidence/security-audit.json |
-
-**Posture score**: `100 - (CRITICAL × 20) - (HIGH × 5) - (MEDIUM × 2)`, floor at 0. Displayed in `/spec-status` and `/spec-dashboard`.
-
-**Release gating**: `/spec-release` blocks if CRITICAL findings exist. Use `--force` to override with an audit trail.
-
-#### Security Agent Tool Constraints
-
-All security agents are read-only with respect to application source code:
-
-| Agent | Tools | Constraint |
-|-------|-------|-----------|
-| spec-security-reviewer | Read, Glob, Grep | No Write, Edit, or Bash |
-| spec-threat-modeler | Read, Write, Glob, Grep | HARD-GATE: Write limited to 3 spec-directory paths |
-| spec-security-auditor | Read, Glob, Grep, Bash | HARD-GATE: Bash limited to audit commands (git log, npm audit, etc.) |
-
-Findings never record actual credential values — only file paths, line numbers, and pattern descriptions. Any security agent crash or timeout is logged and the pipeline continues (graceful degradation).
-
-### Feedback Loop
-
-`/spec-retro` analyzes completed specs and writes structured lessons to `lessons.json`. Future `/spec` and `/spec-brainstorm` commands read these lessons and apply them. The system learns from its mistakes across specs.
-
-Lessons can be marked **enforceable** with `"enforceable": true` and a `"check"` field. Instead of just advising, the validator automatically executes the named check during `/spec-validate`. The first built-in check (`grep_for_old_field_references`) re-runs deprecated field detection from lesson history.
-
-### Human Checkpoints
-
-- **Mandatory gate after design** — user must approve architecture before tasks are generated
-- **Periodic checkpoints** — every N tasks (configurable), execution pauses for human review
-- **Budget cap** — execution pauses when token budget is exhausted
-- **Stuck detection** — 3 failures on the same task triggers a pause for human input
-
-## EARS Notation
-
-All acceptance criteria use the six EARS patterns:
-
-| Pattern | Syntax | When to Use |
-|---------|--------|------------|
-| Event-Driven | WHEN [trigger] THE SYSTEM SHALL [behavior] | Response to action |
-| State-Driven | WHILE [state] THE SYSTEM SHALL [behavior] | During a state |
-| Conditional | IF [condition] WHEN [trigger] THE SYSTEM SHALL | Conditional behavior |
-| Negative | THE SYSTEM SHALL NOT [behavior] | Prohibited behavior |
-| Ubiquitous | THE SYSTEM SHALL [behavior] | Always true |
-| Feature-Specific | WHERE [feature] WHEN [trigger] THE SYSTEM SHALL | Limited context |
-
-## Presets
-
-Start from a pre-filled template:
-- **REST API** — CRUD, validation, auth, errors, pagination
-- **React Page** — Rendering, routing, state, API integration, responsive
-- **CLI Tool** — Arg parsing, subcommands, output formatting, errors
-
-## CI/CD Integration
-
-Shell scripts for headless execution with built-in safety:
+## Headless / CI
 
 ```bash
-# Default: fully autonomous (no permission prompts)
-./scripts/spec-loop.sh --spec-name user-authentication
-./scripts/spec-team.sh --spec-name payment-processing --max-iterations 30
-
-# Re-enable permission prompts if needed
-./scripts/spec-loop.sh --spec-name user-authentication --no-skip-permissions
+scripts/spec-loop.sh --spec-name user-authentication [--max-iterations 30] [--team]
+scripts/spec-exec.sh                      # one iteration; spec auto-detected when only one exists
 ```
 
-Script features:
-- **Auto-detect** — `--spec-name` is optional if only one spec exists
-- **Worktree isolation** — runs in a `spec/<name>` branch (disable with `--no-worktree`)
-- **Checkpoint recovery** — creates checkpoint commits before each iteration, rolls back on crash
-- **Crash safety net** — detects if state.json wasn't updated and appends fallback audit entry
-- **Duplicate prevention** — `spec-team.sh` prevents concurrent runs on the same spec
-- **Cross-spec dependencies** — validates dependent specs are complete (with DFS cycle detection)
-- **PR suggestion** — prints `gh pr create` command on completion
+Each iteration is a fresh `claude -p` session running one wave, so context never bloats and a crash
+loses at most one wave. The script records real token usage from the JSON result, enforces
+`budget_cap`, rolls back to the pre-iteration commit on a non-zero exit, stops after two crashes or two
+iterations without progress, and refuses to start on a dirty tree (so rollback cannot lose your work).
+Runs in a `spec/<name>` worktree by default (`--no-worktree` to opt out) and prints a `gh pr create`
+suggestion on completion. Permission prompts are skipped by default (`--no-skip-permissions` to re-enable).
 
-## Spec File Structure
+## Spec files
 
 ```
-.claude/specs/<feature-name>/
-  requirements.md      # EARS requirements with risk register
-  design.md            # Architecture with traceability
-  tasks.md             # DAG with wave assignments and wiring status
-  state.json           # Execution state (the brain, includes security state)
-  init.sh              # Project-specific commands
-  lessons.json         # Shared feedback loop
-  evidence/            # Screenshots, test results, reviews
-    threat-model.md    # STRIDE analysis (auto-generated)
-    security-review-wave-N.md  # Per-wave security findings
-    security-audit.json        # 15-phase audit report
-  handoffs/            # Agent communication (team mode)
-    security-T-X-critical.md   # CRITICAL finding fix instructions
-  docs/                # Generated documentation
-  acceptance.md        # UAT report
-  release.md           # Release notes
-  retro.md             # Retrospective
+.claude/specs/<name>/
+  requirements.md   EARS user stories, risk register, optional "## Depends On"
+  design.md         Architecture with Covers: US-X traceability
+  tasks.md          Task DAG: Status, Wave, Wired, Wire into, Dependencies, Covers, Files
+  state.json        Derived runtime state: tasks, waves, phase, gates, security, audit_log
+  init.sh           gates=(...), budget_cap, lifecycle hooks
+  evidence/         tests/, reviews/wave-N.md, wiring-wave-N.md, threat-model.md, security-audit.json
+  handoffs/         Agent-to-agent notes (team mode, CRITICAL findings)
+  acceptance.md, release.md, verification.md, retro.md, docs/
+.claude/specs/lessons.json   Shared across specs
 ```
 
-## Inspiration and Lineage
+## Development
 
-This plugin is inspired by [Kiro](https://kiro.dev)'s spec-driven development functionality. Kiro introduced the concept of structured specification workflows that guide developers through requirements gathering, design, and task breakdown before implementation.
+```bash
+python3 -m unittest discover -s tests      # spec-state behaviour + spec-loop.sh with a fake claude
+python3 tests/check_plugin.py              # versions, agent/skill/CLI/workflow references, hooks, evals
+shellcheck scripts/*.sh scripts/hooks/*.sh scripts/lib/*.sh
+claude plugin validate .                   # manifest
+claude plugin eval . --trust-plugin        # evals/*: smoke cases graded by an LLM judge (costs tokens)
+```
 
-The direct predecessor is [spec-driven-plugin](https://github.com/habib0x0/spec-driven-plugin) (v3), which proved the concept works in Claude Code. spec-engine is a clean-room rewrite that keeps the core methodology while fundamentally changing the execution architecture.
+## Lineage
 
-### What spec-engine inherits from spec-driven-plugin
-
-- **Three-phase workflow**: Requirements (EARS) -> Design -> Tasks
-- **EARS notation**: Structured, testable acceptance criteria
-- **Spec file organization**: Dedicated directories with separate documents per phase
-- **Task traceability**: Linking tasks back to requirements
-- **Agent team model**: Implementer + Tester + Reviewer + Debugger separation of concerns
-- **Wiring rule**: Code must be connected to the application, not just written
-- **Expert consultation**: Domain expert consultants during brainstorming
-- **Cross-spec dependencies**: Specs can declare dependencies on other specs
-- **Worktree isolation**: Git worktrees for safe parallel execution
-- **Checkpoint recovery**: Pre-iteration commits with rollback on failure
-
-### What spec-engine does differently
-
-| Dimension | spec-driven-plugin v3 | spec-engine |
-|-----------|----------------------|-------------|
-| **Execution model** | Shell loop spawning fresh `claude -p` processes per iteration, each cold-starting with the full spec in the prompt | Native Agent tool — agents are subprocesses within the session, no cold start, no re-parsing |
-| **Permissions** | `--dangerously-skip-permissions` on every invocation | Granular tool allowlists per agent (reviewer gets Read/Glob/Grep only, implementer gets Write/Edit/Bash, etc.) |
-| **Task batching** | One task per iteration (`"Pick ONE task"`) | Wave-based DAG batching — 2-3 independent tasks per iteration, reducing total iterations 3-5x |
-| **State tracking** | `progress.md` — append-only markdown log (~4000+ tokens), parsed with awk | `state.json` — machine-readable (~200 tokens), structurally parsed, resumable across sessions |
-| **Completion detection** | `grep '<promise>COMPLETE</promise>'` in stdout | Structural check: all tasks in state.json have `status: completed` and `wired: yes\|n/a` |
-| **Quality gates** | None — relies on Claude to self-test | Automated lint + type check + regression test + secret scan + security review after every iteration, with evidence persistence and file existence verification |
-| **Agent context (team mode)** | Full spec dumped into every agent's prompt (~6000 tokens each) | Handoff files (~200 tokens each) — ~85% token reduction |
-| **Wiring enforcement** | `Wired: yes/no` field, manually checked by tester | `Wire into:` target declared per task, grep-verified after each wave (not self-reported), acceptor runs independent wiring audit |
-| **Human checkpoints** | None after the requirements phase | Mandatory design gate + periodic task checkpoints + budget cap + stuck detection |
-| **Feedback loop** | None — each spec starts from scratch | `lessons.json` written by `/spec-retro`, read by `/spec` and `/spec-brainstorm` |
-| **Error recovery** | Checkpoint commits + rollback | 4-tier: debugger retry (2x) -> task rollback -> wave rollback -> human escalation |
-| **Traceability** | Requirements -> Tasks | Full chain: Requirements -> Design (`Covers: US-X`) -> Tasks (`Covers: US-X`) -> Code -> Tests -> Acceptance |
-| **Error-path testing** | Not required | Mandatory — every task must have at least one error-path acceptance criterion |
-| **Review persistence** | Ephemeral (in conversation) | Persisted to `evidence/reviews/` with human-review flags for sensitive areas |
-| **Crash recovery** | Checkpoint + progress.md fallback logging | Checkpoint + state.json update detection + fallback audit log entry |
-| **Shell scripts** | 250+ lines of business logic (prompt building, awk parsing, worktree management) | Thin wrappers (~80 lines) with shared `lib/` helpers — business logic lives in skill definitions |
-| **Cost controls** | `--max-iterations` only | Token budget cap + dry-run cost estimates + per-task token tracking in state.json |
-| **Spec integrity** | None — spec files can change mid-execution without detection | SHA256 manifests computed after task generation, verified before every execution |
-| **Inferred requirements** | Not tracked | AI-inferred requirements tagged with `[inferred]` so users can distinguish what they asked for vs what was added |
-| **Parallel execution** | Sequential (one task per iteration) | Parallel agents with file ownership, shared files registry, atomic merge, and cross-task consistency review |
-| **Model routing** | Opus for planner + reviewer, Sonnet for the rest | Opus for all judgment tasks (planner, reviewer, acceptor, consultant), Sonnet for all execution tasks |
-
-### Why the rewrite?
-
-The spec-driven-plugin proved that structured spec workflows dramatically improve AI-driven development quality. But its shell-loop architecture hit fundamental limits:
-
-1. **Cold start overhead** — every iteration spawns a fresh `claude -p`, re-reads the full spec, and loses all prior context
-2. **Permission model** — `--dangerously-skip-permissions` is a binary choice that gives every agent every tool
-3. **No quality enforcement** — without automated gates, tasks get marked "complete" without real verification
-4. **Linear execution** — one task per iteration means a 15-task spec takes 15+ iterations even when tasks are independent
-
-spec-engine addresses all four by leveraging Claude Code's native Agent tool, per-agent tool restrictions, automated quality gates, and wave-based batching. Critically, every verification step is **enforced** with `<HARD-GATE>` blocks, rationalization prevention tables, and red flags lists — the same enforcement patterns used in superpowers skills. Agents cannot skip auto-commit, wiring verification, or file existence checks because the enforcement is structural (grep evidence required), not instructional (hoping agents follow directions).
+spec-engine keeps spec-driven-plugin's methodology (EARS, three-phase workflow, wiring rule, agent
+team, cross-spec dependencies, worktree isolation) and changes the execution architecture: wave-based
+batching instead of one task per iteration, a deterministic state CLI instead of prompt-driven
+bookkeeping, hooks instead of instructions for the non-negotiable gates, machine-readable
+`state.json` instead of a markdown progress log, per-agent tool allowlists, automated quality gates in
+diff mode, and persisted evidence for acceptance.
 
 ## Contributors
 
 - [farshidghyasi](https://github.com/farshidghyasi) — Author
-- [habib0x](https://github.com/habib0x0) — Orignal spec-driven-plugin Author
+- [habib0x](https://github.com/habib0x0) — Original spec-driven-plugin author
 
 ## License
 

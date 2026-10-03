@@ -5,6 +5,7 @@ allowed-tools:
   - Read
   - Glob
   - Grep
+  - Bash
   - AskUserQuestion
 ---
 
@@ -23,7 +24,7 @@ Interactive guided mode for step-by-step spec execution. Shows current state and
 ### Step 1: Load and Display State
 
 1. Locate spec directory, validate spec name (auto-detect if only one spec)
-2. Read state.json
+2. Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec-state.py status <spec>`
 3. Present a concise status summary:
 
 ```
@@ -67,7 +68,7 @@ Use AskUserQuestion with the most relevant options based on current state:
 Based on user selection:
 - For execution actions: tell the user to run the corresponding command (e.g., "Run `/spec-exec auth-system` to execute the next wave")
 - For view actions: read and display the requested information inline
-- For skip actions: update state.json directly (mark task as skipped, log in audit_log)
+- For skip actions: `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec-state.py set-task <spec> T-X --status skipped`
 
 ### Step 4: Loop
 

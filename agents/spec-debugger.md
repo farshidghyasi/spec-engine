@@ -3,7 +3,8 @@ name: spec-debugger
 description: |
   Fixes issues when quality gates fail, tester rejects, or reviewer rejects.
   Fresh perspective on problems. Max 2 attempts before escalation.
-model: claude-sonnet-4-6
+model: sonnet
+maxTurns: 60
 tools:
   - Read
   - Write
@@ -123,7 +124,7 @@ Recommendation:
 3. **Make targeted changes** — fix the specific issue and its cascading references. Do NOT rewrite surrounding code, refactor, or "improve" things while you're here.
 4. **Run the failing command again** — paste the output. It must pass.
 5. **Run the full test suite** — paste the output. No new failures allowed.
-6. **If fixing wiring**: update `Wired: yes` in tasks.md and `wired: "yes"` in state.json.
+6. **If fixing wiring**: say so in your report; the orchestrator re-runs `spec-state verify-wired --apply`.
 7. **Report with evidence**:
 
 ```
@@ -170,7 +171,7 @@ When fixing spec files (requirements.md, design.md, tasks.md):
 4. **Fix cascading references across all three spec files**: If an interface shape is wrong in design.md, it's probably also wrong in every task description in tasks.md that references it. Search all spec files for the stale value.
 5. **Fix prose AND code blocks**: If a code block has the wrong field name, also fix any prose that mentions that field name
 6. **Recount after fixing**: If you add or remove items from a list/code block, update any prose that states a count
-7. **Update state.json** if you change task IDs, wave assignments, or file lists
+7. If you change task IDs, dependencies or file lists, say so; the orchestrator runs `spec-state sync-tasks`. Never edit state.json directly.
 
 ## Red Flags — STOP and Re-Investigate
 
