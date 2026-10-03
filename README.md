@@ -11,7 +11,7 @@ Inspired by [Kiro](https://kiro.dev)'s spec workflow and descended from
 /spec <name>   Requirements (EARS) -> Design -> Threat model -> Human gate -> Tasks (wave DAG)
 /spec-validate EARS, traceability, codebase accuracy (auto-fix)
 /spec-loop     per wave: parallel implementers -> gates (diff mode) -> wiring grep -> Opus review -> commit
-/spec-accept   /spec-security-audit  /spec-docs  /spec-release  /spec-verify  /spec-retro
+/spec-accept   /spec-security-audit  /spec-ship (docs, release, smoke test, retro)
 ```
 
 ## Install
@@ -31,9 +31,7 @@ Requires `python3` (3.9+, stdlib only) and `git`.
 /spec-loop                    # or /spec-exec for one wave, /spec-team for a tester per task
 /spec-security-audit
 /spec-accept
-/spec-docs
-/spec-release --tag
-/spec-retro
+/spec-ship --tag             # docs + release notes + tag + retro in one go (add --url to smoke-test a deploy)
 ```
 
 Small change? `/spec-quick "fix the login button alignment on mobile"` creates a tasks-only spec and
@@ -55,7 +53,8 @@ runs it with the same gates and wiring verification.
 | `/spec-status` / `/spec-dashboard [--deep] [--deps]` / `/spec-session` | Progress for one spec / all specs / guided mode |
 | `/spec-accept` | Acceptance with traceability matrix and wiring audit |
 | `/spec-security-audit [--comprehensive]` | 15-phase security audit, posture score |
-| `/spec-docs` / `/spec-release [--tag] [--force]` / `/spec-verify --url` / `/spec-retro` | Docs, release (blocked by CRITICAL findings), smoke tests, lessons |
+| `/spec-ship [--tag] [--release] [--url] [--force]` | Docs, release (blocked by CRITICAL findings), optional smoke test, retrospective, in one run |
+| `/spec-docs` / `/spec-release` / `/spec-verify --url` / `/spec-retro` | The same four steps individually |
 
 ## How it works
 

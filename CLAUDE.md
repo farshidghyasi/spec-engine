@@ -59,7 +59,8 @@ tests/                       unittest suite for spec-state + check_plugin.py con
 | `/spec-exec` / `/spec-loop` / `/spec-team` | One wave / all waves / all waves with a tester per task |
 | `/spec-status`, `/spec-dashboard`, `/spec-session` | Progress views (CLI-rendered) |
 | `/spec-accept`, `/spec-security-audit` | Acceptance with wiring audit; 15-phase audit |
-| `/spec-docs`, `/spec-release`, `/spec-verify`, `/spec-retro` | Docs, release (CRITICAL findings block), smoke tests, lessons |
+| `/spec-ship` | Docs, release (CRITICAL findings block), optional smoke test, retro in one run |
+| `/spec-docs`, `/spec-release`, `/spec-verify`, `/spec-retro` | The same steps individually |
 
 ## Model routing
 
